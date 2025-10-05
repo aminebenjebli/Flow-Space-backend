@@ -1,16 +1,323 @@
 <div align="center">
 
-# Flow Space – Backend
+# Flow Space – Backend API
 
-Plateforme de productivité collaborative intelligente (Backend API) propulsée par NestJS, Prisma (MongoDB) et une architecture modulaire prête pour la scalabilité, l'IA et la collaboration temps réel.
+Plateforme académique de productivité collaborative intelligente : gestion de tâches augmentée par l'IA, gamification, analytics, collaboration temps réel et support PWA.
 
-![Status](https://img.shields.io/badge/status-active-success) ![Node](https://img.shields.io/badge/node-%3E=20.x-green) ![NestJS](https://img.shields.io/badge/nestjs-10.x-E0234E) ![Prisma](https://img.shields.io/badge/prisma-ORM-blue) ![License](https://img.shields.io/badge/license-UNLICENSED-lightgrey)
+![Status](https://img.shields.io/badge/status-active-success) ![Node](https://img.shields.io/badge/node-%3E=20.x-green) ![NestJS](https://img.shields.io/badge/nestjs-10.x-E0234E) ![Prisma](https://img.shields.io/badge/prisma-ORM-blue) ![DB](https://img.shields.io/badge/mongo-replica--set-critical) ![License](https://img.shields.io/badge/license-UNLICENSED-lightgrey)
 
 </div>
 
-## 🎯 Vision
+---
 
-Flow Space vise à augmenter la productivité des équipes via une combinaison d'automatisation intelligente, d'engagement ludique (gamification), d'analytique avancée et d'une expérience fluide multicanale (PWA + temps réel).
+## 🧭 Objectif du Projet
+
+Fournir une base robuste et évolutive pour expérimenter des fonctionnalités de productivité intelligente en équipe (priorisation IA, scoring, présence, analytics comportement, prévention burnout). Ce dépôt est le backend unique (API REST + future WebSocket) – orienté apprentissage et qualité de code.
+
+---
+
+## ✨ Fonctionnalités (Implémentées & Planifiées)
+
+### ✅ Actuel
+
+- Authentification JWT + OTP e-mail (activation + reset password)
+- Gestion utilisateurs (CRUD, validation DTO, hash bcrypt)
+- Upload fichiers (Multer, taille max configurable)
+- Logging structuré (Pino) + middleware de requêtes
+- Rate limiting / throttling configurable
+- Validation stricte des variables d'environnement
+- Templates e-mail (Handlebars)
+- Documentation Swagger `/api/docs`
+
+### 🚧 En cours / À venir
+
+- Création de tâches en langage naturel
+- Priorisation intelligente (modèle scoring hybride règles + IA)
+- Gamification (XP, niveaux, badges, leaderboards)
+- Présence temps réel & collaboration (WebSocket + Redis)
+- Analytics (heatmaps productivité, focus vs multitâche)
+- Détection risque burnout (heuristiques horaires + charge)
+- PWA: offline sync + notifications intelligentes
+
+---
+
+## �️ Architecture & Stack
+
+| Domaine          | Choix                                  |
+| ---------------- | -------------------------------------- |
+| Framework        | NestJS (architecture modulaire)        |
+| Base de données  | MongoDB (Prisma Client) en replica set |
+| Auth             | JWT + OTP + bcryptjs                   |
+| Validation       | class-validator / class-transformer    |
+| Logging          | nestjs-pino / pino-pretty (dev)        |
+| Fichiers         | Multer (limite dynamique)              |
+| Documentation    | Swagger (OpenAPI)                      |
+| Tests            | Jest (unit + e2e)                      |
+| Sécurité         | Helmet, throttler, validation DTO      |
+| Conteneurisation | Docker / docker compose                |
+
+---
+
+## 📂 Structure du Projet (résumé)
+
+```
+src/
+    core/            # Config, services infra, utils
+    modules/
+        auth/          # Auth + OTP
+        user/          # Users
+        file-upload/   # Upload fichiers
+    templates/       # E-mails Handlebars
+prisma/
+    schema.prisma    # Modèle Mongo (Prisma)
+scripts/           # Scripts utilitaires
+```
+
+---
+
+## 🧪 Prérequis
+
+| Outil              | Version recommandée           |
+| ------------------ | ----------------------------- |
+| Node.js            | ≥ 20.x                        |
+| npm                | ≥ 10.x                        |
+| MongoDB            | 6/7 (replica set obligatoire) |
+| Docker (optionnel) | Latest                        |
+| Redis (futur)      | Pour temps réel / cache       |
+
+---
+
+## 🔧 Variables d'Environnement (Validation)
+
+Voir `.env.example`. Chaque variable est validée au démarrage.
+
+| Variable         | Description               | Exemple                                            |
+| ---------------- | ------------------------- | -------------------------------------------------- |
+| NODE_ENV         | Environnement             | development                                        |
+| PORT             | Port HTTP                 | 8050                                               |
+| BASE_URL         | URL publique API          | http://127.0.0.1:8050/                             |
+| ALLOWED_ORIGINS  | CORS CSV                  | http://localhost:3000                              |
+| THROTTLE_TTL     | Fenêtre (s)               | 60                                                 |
+| THROTTLE_LIMIT   | Requêtes / fenêtre        | 100                                                |
+| DATABASE_URL     | Connexion Mongo (rs)      | mongodb://localhost:27017/flowspace?replicaSet=rs0 |
+| JWT_SECRET       | Secret JWT                | (string)                                           |
+| EMAIL\_\*        | Config SMTP               | ...                                                |
+| REDIS\_\*        | Config Redis (futur)      | ...                                                |
+| LOG_LEVEL        | info / debug              | debug                                              |
+| LOG_FORMAT       | pretty / json             | pretty                                             |
+| MAX_FILE_SIZE    | Taille max upload (bytes) | 5242880                                            |
+| UPLOAD_DIRECTORY | Dossier uploads           | uploads                                            |
+
+---
+
+## 🚀 Démarrage (Choisir une Option)
+
+### Option 1 – Local MongoDB (Replica Set)
+
+1. Démarrer Mongo en replica set (voir section détaillée plus bas)
+2. `cp .env.example .env` puis adapter `DATABASE_URL`
+3. `npm install`
+4. `npx prisma generate && npx prisma db push`
+5. `npm run start:dev`
+6. Swagger: http://localhost:8050/api/docs
+
+### Option 2 – Docker
+
+```
+docker compose up -d
+cp .env.example .env   # Ajuster DATABASE_URL si besoin
+npx prisma generate
+npx prisma db push
+npm run start:dev
+```
+
+### Option 3 – MongoDB Atlas (rapide)
+
+1. Créer cluster (free tier)
+2. Ajouter IP locale / user
+3. `DATABASE_URL="mongodb+srv://user:pass@cluster/flowspace"`
+4. `npx prisma generate && npx prisma db push`
+
+---
+
+## 🛢️ MongoDB Replica Set (Guide Complet)
+
+Prisma requiert un replica set pour certaines opérations. Trois approches : Atlas, local, Docker.
+
+### Atlas
+
+```
+DATABASE_URL="mongodb+srv://USER:PASSWORD@cluster0.xxxx.mongodb.net/flowspace"
+npx prisma generate && npx prisma db push
+```
+
+### Local macOS / Linux
+
+Terminal 1:
+
+```bash
+brew services stop mongodb-community || true
+mkdir -p ./mongo-data/rs0
+mongod --dbpath ./mongo-data/rs0 --replSet rs0 --port 27017 --bind_ip localhost
+```
+
+Terminal 2:
+
+```bash
+mongosh
+rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] })
+```
+
+Env:
+
+```env
+DATABASE_URL="mongodb://localhost:27017/flowspace?replicaSet=rs0"
+```
+
+### Local Windows (PowerShell)
+
+```powershell
+New-Item -ItemType Directory -Force -Path .\mongo-data\rs0 | Out-Null
+& "C:\\Program Files\\MongoDB\\Server\\7.0\\bin\\mongod.exe" --dbpath .\mongo-data\rs0 --replSet rs0 --port 27017 --bind_ip 127.0.0.1
+```
+
+Initialisation :
+
+```powershell
+& "C:\\Program Files\\MongoDB\\Server\\7.0\\bin\\mongosh.exe"
+rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] })
+```
+
+### Docker
+
+```yaml
+services:
+    mongo:
+        image: mongo:7
+        command: ['mongod', '--replSet', 'rs0', '--bind_ip_all']
+        ports:
+            - '27017:27017'
+        volumes:
+            - ./mongo-data:/data/db
+    mongo-init-replica:
+        image: mongo:7
+        depends_on:
+            - mongo
+        restart: 'no'
+        entrypoint: >
+            bash -c "sleep 5 && mongosh --host mongo:27017 --eval 'rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"mongo:27017\"}]})' || true"
+```
+
+### Vérification rapide
+
+```bash
+node -e "import('./node_modules/@prisma/client/index.js').then(async m=>{const p=new m.PrismaClient(); console.log(await p.user.count()); await p.$disconnect();})"
+```
+
+### Dépannage
+
+| Problème              | Solution                                |
+| --------------------- | --------------------------------------- |
+| `needs replica set`   | Vérifier `?replicaSet=rs0` dans l'URL   |
+| Pas de PRIMARY        | Refaire `rs.initiate()` après restart   |
+| Port occupé           | `lsof -i :27017` puis kill PID          |
+| Données cassées (dev) | `rm -rf ./mongo-data/rs0` puis relancer |
+
+---
+
+## 🧪 Tests
+
+```bash
+npm run test       # Unitaires
+npm run test:e2e   # End-to-end
+npm run test:cov   # Couverture
+npm run lint       # Qualité / ESLint
+```
+
+Seuil couverture cible: 80%.
+
+---
+
+## 🔐 Sécurité (actuel & futur)
+
+| Domaine            | Implémenté  | Évolution prévue         |
+| ------------------ | ----------- | ------------------------ |
+| Auth JWT           | ✅          | Refresh tokens rotatifs  |
+| OTP Email          | ✅          | Expiration configurable  |
+| Rate limiting      | ✅          | Par IP + clé API (futur) |
+| Validation DTO     | ✅          | Schémas versionnés       |
+| Headers Helmet     | ✅          | CSP stricte (futur)      |
+| Logs structurés    | ✅          | Corrélation trace-id     |
+| Hash mots de passe | ✅ (bcrypt) | Argon2 benchmarking      |
+
+---
+
+## 🧠 Roadmap (Synthèse Backend)
+
+| Fonction            | Statut  | Commentaire                  |
+| ------------------- | ------- | ---------------------------- |
+| Auth + OTP          | Terminé | Base stable                  |
+| Upload fichiers     | Terminé | Limites & types à durcir     |
+| IA Priorisation     | À venir | Modèle scoring + pondération |
+| NLU création tâches | À venir | Parsing prompt -> backlog    |
+| Gamification        | À venir | XP, badges, leaderboard      |
+| Temps réel présence | À venir | WS + Redis adapter           |
+| Analytics heatmaps  | À venir | Agrégations temporelles      |
+| Détection burnout   | À venir | Heuristiques + seuils        |
+| PWA offline sync    | À venir | File d'events & merge        |
+
+---
+
+## 🧰 Scripts (package.json)
+
+```bash
+npm run start:dev      # Dev + watch
+npm run start:prod     # Lancement dist/
+npm run build          # Compilation
+npm run lint           # Lint + fix
+npm run format         # Prettier
+npm run test / test:e2e / test:cov
+npm run db:start       # Démarrer Mongo replica (macOS script)
+npm run db:push        # Prisma db push
+npm run db:studio      # Prisma Studio
+```
+
+---
+
+## 👥 Flux de Contribution Interne
+
+1. Créer branche: `feat/xxx` ou `fix/xxx`
+2. Ajouter/adapter tests (≥80%)
+3. `npm run lint && npm run test`
+4. Mettre à jour README si changement majeur
+5. PR avec description claire (contexte + solution)
+
+Convention commit suggérée (simplifiée) :
+
+```
+feat: ajout priorisation IA
+fix: correction validation email
+refactor: extraction service OTP
+docs: mise à jour guide Mongo
+chore: bump dépendances
+test: ajout cas OTP expiré
+```
+
+---
+
+## 🧾 Licence
+
+Usage académique interne. Ajouter une licence open-source si diffusion publique envisagée.
+
+---
+
+## 💬 Support / Questions
+
+Ouvrir une Issue (bug) ou Discussion (idée / conception). Pour décisions techniques structurantes, créer un mini ADR (`/docs/adr/XXXX-titre.md`).
+
+---
+
+Focus: clarté, pédagogie, extensibilité. Chaque ajout doit : (1) être testé, (2) ne pas casser l’existant, (3) respecter la cohérence architecture. 🚀
 
 ## ✨ Fonctionnalités Clés
 
@@ -828,5 +1135,3 @@ npx npm-check-updates -u
 - 🐛 Bug fixes via GitHub issues
 - 💡 Feature requests welcome
 - 📖 Documentation improvements
-
-
