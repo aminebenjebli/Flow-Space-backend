@@ -12,7 +12,7 @@ model User {
   email            String    @unique
   name             String
   password         String
-  image            String?
+  profilePicture            String?
   otpCode          String?
   otpCodeExpiresAt DateTime?
   isEmailVerified  Boolean   @default(false)

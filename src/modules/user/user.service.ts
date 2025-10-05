@@ -1,9 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { User } from '@prisma/client';
 import { BaseService } from '../../core/services/base.service';
 import { PrismaService } from '../../core/services/prisma.service';
-import { cryptPassword } from '../../core/utils/auth';
+import { cryptPassword, handleOtpOperation } from '../../core/utils/auth';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import { MailerService } from '@nestjs-modules/mailer';
+import {
+    EmailSubject,
+    EmailTemplate
+} from 'src/core/constants/email.constants';
 
 @Injectable()
 export class UserService extends BaseService<
@@ -11,17 +16,45 @@ export class UserService extends BaseService<
     CreateUserDto,
     UpdateUserDto
 > {
-    constructor(private readonly prismaService: PrismaService) {
+    constructor(
+        private readonly prismaService: PrismaService,
+        private readonly mailerService: MailerService
+    ) {
         super(prismaService.user, 'User');
     }
 
     async create(createDto: CreateUserDto): Promise<User> {
-      return this.prismaService.user.create({
-        data: {
-          ...createDto,
-          password: await cryptPassword(createDto.password),
-          isEmailVerified: false,
-        },
-      });
+        // Check if user already exists
+        const existingUser = await this.prismaService.user.findUnique({
+            where: { email: createDto.email }
+        });
+
+        if (existingUser) {
+            throw new ConflictException('User with this email already exists');
+        }
+
+        // Préparer les données à insérer
+        const userData: any = {
+            ...createDto,
+            password: await cryptPassword(createDto.password),
+            isEmailVerified: false
+        };
+
+        const user = await this.prismaService.user.create({
+            data: userData
+        });
+
+        // Generate and send OTP for verification
+        await handleOtpOperation(
+            this.prismaService,
+            this.mailerService,
+            createDto.email,
+            {
+                template: EmailTemplate.VERIFY_ACCOUNT,
+                subject: EmailSubject.VERIFY_ACCOUNT
+            }
+        );
+
+        return user;
     }
 }

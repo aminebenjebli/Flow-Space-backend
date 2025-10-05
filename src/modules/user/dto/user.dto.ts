@@ -38,7 +38,7 @@ export class CreateUserDto {
     @ApiProperty({ required: false, example: 'image.jpg' })
     @IsOptional()
     @Transform(({ value }) => value?.trim())
-    image?: string;
+    profilePicture?: string;
 }
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {}
