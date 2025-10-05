@@ -77,7 +77,7 @@ export class AuthService {
         if (!isPasswordValid)
             throw new UnauthorizedException('Invalid credentials');
 
-        if (!user.isVerified) {
+        if (!user.isEmailVerified) {
             await this.generateAndSendOtp(email, 'verification');
             throw new UnauthorizedException(
                 'Please verify your account. A new verification code has been sent to your email.'
@@ -133,7 +133,7 @@ export class AuthService {
             data: {
                 otpCode: null,
                 otpCodeExpiresAt: null,
-                isVerified: true
+                isEmailVerified: true
             }
         });
 

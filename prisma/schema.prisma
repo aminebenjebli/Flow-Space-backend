@@ -15,4 +15,5 @@ model User {
   image            String?
   otpCode          String?
   otpCodeExpiresAt DateTime?
+  isEmailVerified  Boolean   @default(false)
 }
