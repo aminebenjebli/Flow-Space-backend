@@ -22,18 +22,7 @@
         "test:performance": "k6 run tests/performance/scenarios/basic.js",
         "test:coverage-check": "jest --coverage --coverageThreshold='{\"global\":{\"branches\":80,\"functions\":80,\"lines\":80,\"statements\":80}}'",
         "quality:sonar": "sonar-scanner",
-        "prepare": "husky",
-        "db:start": "node -e \"process.platform === 'win32' ? require('child_process').spawn('powershell', ['-File', './scripts/start-mongodb.ps1'], {stdio: 'inherit'}) : require('child_process').spawn('./scripts/start-mongodb.sh', [], {stdio: 'inherit'})\"",
-        "db:start:win": "powershell -File ./scripts/start-mongodb.ps1",
-        "db:start:win:bat": "./scripts/start-mongodb.bat",
-        "db:start:mac": "./scripts/start-mongodb.sh",
-        "db:stop": "node -e \"process.platform === 'win32' ? require('child_process').spawn('net', ['stop', 'MongoDB'], {stdio: 'inherit'}) : require('child_process').spawn('brew', ['services', 'stop', 'mongodb-community'], {stdio: 'inherit'})\"",
-        "db:stop:win": "net stop MongoDB",
-        "db:stop:mac": "brew services stop mongodb-community",
-        "db:push": "npx prisma db push",
-        "db:studio": "npx prisma studio",
-        "db:check": "node scripts/check-db.js",
-        "db:generate": "npx prisma generate"
+        "prepare": "husky"
     },
     "dependencies": {
         "@nestjs-modules/mailer": "^2.0.2",
