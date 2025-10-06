@@ -114,7 +114,7 @@ Voir `.env.example`. Chaque variable est validée au démarrage.
 
 ### Option 1 – Local MongoDB (Replica Set)
 
-1. Démarrer Mongo en replica set (voir section détaillée plus bas)
+1. Démarrer Mongo en replica set: `npm run db:start` (cross-platform)
 2. `cp .env.example .env` puis adapter `DATABASE_URL`
 3. `npm install`
 4. `npx prisma generate && npx prisma db push`
@@ -176,12 +176,31 @@ DATABASE_URL="mongodb://localhost:27017/flowspace?replicaSet=rs0"
 
 ### Local Windows (PowerShell)
 
+**Option 1 – Script automatique (recommandé):**
+
+```powershell
+# Utiliser le script fourni
+npm run db:start:win
+# OU directement
+powershell -File ./scripts/start-mongodb.ps1
+```
+
+**Option 2 – Batch (si PowerShell bloqué):**
+
+```cmd
+npm run db:start:win:bat
+# OU directement
+./scripts/start-mongodb.bat
+```
+
+**Option 3 – Manuel:**
+
 ```powershell
 New-Item -ItemType Directory -Force -Path .\mongo-data\rs0 | Out-Null
 & "C:\\Program Files\\MongoDB\\Server\\7.0\\bin\\mongod.exe" --dbpath .\mongo-data\rs0 --replSet rs0 --port 27017 --bind_ip 127.0.0.1
 ```
 
-Initialisation :
+Initialisation (terminal séparé) :
 
 ```powershell
 & "C:\\Program Files\\MongoDB\\Server\\7.0\\bin\\mongosh.exe"
@@ -270,16 +289,33 @@ Seuil couverture cible: 80%.
 
 ## 🧰 Scripts (package.json)
 
+## 🧰 Scripts (package.json)
+
 ```bash
+# Development
 npm run start:dev      # Dev + watch
 npm run start:prod     # Lancement dist/
 npm run build          # Compilation
 npm run lint           # Lint + fix
 npm run format         # Prettier
+
+# Testing
 npm run test / test:e2e / test:cov
-npm run db:start       # Démarrer Mongo replica (macOS script)
+
+# Database (Cross-platform)
+npm run db:start       # Démarrer Mongo replica (auto-détecte OS)
+npm run db:stop        # Arrêter MongoDB (auto-détecte OS)
 npm run db:push        # Prisma db push
 npm run db:studio      # Prisma Studio
+npm run db:check       # Vérifier connexion DB
+npm run db:generate    # Générer Prisma Client
+
+# Platform-specific (optionnel)
+npm run db:start:mac   # macOS/Linux uniquement
+npm run db:start:win   # Windows PowerShell
+npm run db:start:win:bat # Windows Batch (si PowerShell bloqué)
+npm run db:stop:mac    # macOS Homebrew
+npm run db:stop:win    # Windows service
 ```
 
 ---
