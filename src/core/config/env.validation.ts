@@ -85,6 +85,15 @@ class EnvironmentVariables {
 
     @IsString()
     UPLOAD_DIRECTORY: string;
+
+    @IsString()
+    CLOUDINARY_CLOUD_NAME: string;
+
+    @IsString()
+    CLOUDINARY_API_KEY: string;
+
+    @IsString()
+    CLOUDINARY_API_SECRET: string;
 }
 
 export function validate(config: Record<string, unknown>) {

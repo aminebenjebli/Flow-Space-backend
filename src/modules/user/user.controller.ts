@@ -5,17 +5,30 @@ import {
     Get,
     Param,
     Patch,
-    Post
+    Post,
+    UploadedFile,
+    UseInterceptors,
+    UseGuards
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
     ApiCreatedResponse,
     ApiOkResponse,
     ApiOperation,
-    ApiTags
+    ApiTags,
+    ApiConsumes,
+    ApiBody,
+    ApiBearerAuth
 } from '@nestjs/swagger';
 import { User } from '@prisma/client';
-import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import {
+    CreateUserDto,
+    UpdateUserDto,
+    UpdateProfileImageDto
+} from './dto/user.dto';
 import { UserService } from './user.service';
+import { ImageValidationPipe } from '../../core/common/pipes/image-validation.pipe';
+import { AuthGuard } from '../../core/common/guards/auth.guard';
 
 @ApiTags('Users')
 @Controller('user')
@@ -55,6 +68,8 @@ export class UserController {
     }
 
     @Patch(':id')
+    @UseGuards(AuthGuard)
+    @ApiBearerAuth()
     @ApiOperation({
         summary: 'Update user',
         description: "Updates an existing user's information"
@@ -70,6 +85,8 @@ export class UserController {
     }
 
     @Delete(':id')
+    @UseGuards(AuthGuard)
+    @ApiBearerAuth()
     @ApiOperation({
         summary: 'Delete user',
         description: 'Removes a user from the system'
@@ -79,5 +96,42 @@ export class UserController {
     })
     remove(@Param('id') id: string): Promise<User> {
         return this.userService.remove(id);
+    }
+
+    @Post(':id/profile-image')
+    @UseGuards(AuthGuard)
+    @UseInterceptors(FileInterceptor('profileImage'))
+    @ApiOperation({
+        summary: 'Update user profile image',
+        description: 'Uploads and sets a new profile image for the user'
+    })
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        description: 'Profile image file',
+        type: UpdateProfileImageDto
+    })
+    @ApiBearerAuth()
+    @ApiOkResponse({
+        description: 'Profile image updated successfully'
+    })
+    async updateProfileImage(
+        @Param('id') id: string,
+        @UploadedFile(new ImageValidationPipe()) file: Express.Multer.File
+    ): Promise<User> {
+        return this.userService.updateProfileImage(id, file);
+    }
+
+    @Delete(':id/profile-image')
+    @UseGuards(AuthGuard)
+    @ApiOperation({
+        summary: 'Remove user profile image',
+        description: 'Removes the current profile image of the user'
+    })
+    @ApiBearerAuth()
+    @ApiOkResponse({
+        description: 'Profile image removed successfully'
+    })
+    async removeProfileImage(@Param('id') id: string): Promise<User> {
+        return this.userService.removeProfileImage(id);
     }
 }

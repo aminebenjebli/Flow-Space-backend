@@ -1,4 +1,4 @@
-import { ApiProperty, PartialType } from '@nestjs/swagger';
+import { ApiProperty, PartialType, OmitType } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
     IsEmail,
@@ -41,4 +41,23 @@ export class CreateUserDto {
     profilePicture?: string;
 }
 
-export class UpdateUserDto extends PartialType(CreateUserDto) {}
+export class UpdateUserDto extends PartialType(
+    OmitType(CreateUserDto, ['profilePicture'] as const)
+) {
+    @ApiProperty({ required: false, example: 'Bio goes here' })
+    @IsOptional()
+    @IsString({ message: 'Bio must be a string' })
+    @MaxLength(160, { message: 'Bio cannot exceed 160 characters' })
+    @Transform(({ value }) => value?.trim())
+    bio?: string;
+}
+
+export class UpdateProfileImageDto {
+    @ApiProperty({
+        type: 'string',
+        format: 'binary',
+        description: 'Profile image file (max 5MB)',
+        required: true
+    })
+    profileImage: any;
+}
