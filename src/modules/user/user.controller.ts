@@ -24,7 +24,8 @@ import { User } from '@prisma/client';
 import {
     CreateUserDto,
     UpdateUserDto,
-    UpdateProfileImageDto
+    UpdateProfileImageDto,
+    ChangePasswordDto
 } from './dto/user.dto';
 import { UserService } from './user.service';
 import { ImageValidationPipe } from '../../core/common/pipes/image-validation.pipe';
@@ -133,5 +134,31 @@ export class UserController {
     })
     async removeProfileImage(@Param('id') id: string): Promise<User> {
         return this.userService.removeProfileImage(id);
+    }
+
+    @Patch(':id/change-password')
+    @UseGuards(AuthGuard)
+    @ApiOperation({
+        summary: 'Change user password',
+        description: 'Changes the password for the authenticated user'
+    })
+    @ApiBearerAuth()
+    @ApiOkResponse({
+        description: 'Password changed successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                message: {
+                    type: 'string',
+                    example: 'Password changed successfully'
+                }
+            }
+        }
+    })
+    async changePassword(
+        @Param('id') id: string,
+        @Body() changePasswordDto: ChangePasswordDto
+    ): Promise<{ message: string }> {
+        return this.userService.changePassword(id, changePasswordDto);
     }
 }

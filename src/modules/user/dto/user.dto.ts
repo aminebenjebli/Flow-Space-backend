@@ -8,6 +8,7 @@ import {
     MaxLength,
     MinLength
 } from 'class-validator';
+import { MatchesProperty } from '../../../core/common/validators/matches-property.validator';
 
 export class CreateUserDto {
     @ApiProperty({ example: 'user@example.com' })
@@ -42,7 +43,7 @@ export class CreateUserDto {
 }
 
 export class UpdateUserDto extends PartialType(
-    OmitType(CreateUserDto, ['profilePicture'] as const)
+    OmitType(CreateUserDto, ['profilePicture', 'password'] as const)
 ) {
     @ApiProperty({ required: false, example: 'Bio goes here' })
     @IsOptional()
@@ -50,6 +51,40 @@ export class UpdateUserDto extends PartialType(
     @MaxLength(160, { message: 'Bio cannot exceed 160 characters' })
     @Transform(({ value }) => value?.trim())
     bio?: string;
+}
+
+export class ChangePasswordDto {
+    @ApiProperty({
+        example: 'CurrentPass123!',
+        description: 'Current password for verification'
+    })
+    @IsString({ message: 'Current password must be a string' })
+    currentPassword: string;
+
+    @ApiProperty({
+        example: 'NewStrongPass123!',
+        description:
+            'New password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number and one special character'
+    })
+    @IsString()
+    @MinLength(8, {
+        message: 'New password must be at least 8 characters long'
+    })
+    @MaxLength(32, { message: 'New password cannot exceed 32 characters' })
+    @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
+        message: 'New password is too weak'
+    })
+    newPassword: string;
+
+    @ApiProperty({
+        example: 'NewStrongPass123!',
+        description: 'Confirm the new password'
+    })
+    @IsString({ message: 'Password confirmation must be a string' })
+    @MatchesProperty('newPassword', {
+        message: 'Password confirmation must match new password'
+    })
+    confirmPassword: string;
 }
 
 export class UpdateProfileImageDto {

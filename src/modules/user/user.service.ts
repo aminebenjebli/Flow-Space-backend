@@ -1,14 +1,24 @@
 import {
     ConflictException,
     Injectable,
-    NotFoundException
+    NotFoundException,
+    BadRequestException,
+    UnauthorizedException
 } from '@nestjs/common';
 import { User } from '@prisma/client';
 import { BaseService } from '../../core/services/base.service';
 import { PrismaService } from '../../core/services/prisma.service';
 import { CloudinaryService } from '../../core/services/cloudinary.service';
-import { cryptPassword, handleOtpOperation } from '../../core/utils/auth';
-import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import {
+    cryptPassword,
+    handleOtpOperation,
+    comparePassword
+} from '../../core/utils/auth';
+import {
+    CreateUserDto,
+    UpdateUserDto,
+    ChangePasswordDto
+} from './dto/user.dto';
 import { MailerService } from '@nestjs-modules/mailer';
 import {
     EmailSubject,
@@ -143,6 +153,67 @@ export class UserService extends BaseService<
             return updatedUser;
         } catch (error) {
             throw new Error(`Failed to remove profile image: ${error.message}`);
+        }
+    }
+
+    async changePassword(
+        userId: string,
+        changePasswordDto: ChangePasswordDto
+    ): Promise<{ message: string }> {
+        const { currentPassword, newPassword, confirmPassword } =
+            changePasswordDto;
+
+        // Check if new password and confirmation match
+        if (newPassword !== confirmPassword) {
+            throw new BadRequestException(
+                'New password and confirmation do not match'
+            );
+        }
+
+        // Check if user exists
+        const user = await this.prismaService.user.findUnique({
+            where: { id: userId }
+        });
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        // Verify current password
+        const isCurrentPasswordValid = await comparePassword(
+            currentPassword,
+            user.password
+        );
+        if (!isCurrentPasswordValid) {
+            throw new UnauthorizedException('Current password is incorrect');
+        }
+
+        // Check if new password is different from current password
+        const isSamePassword = await comparePassword(
+            newPassword,
+            user.password
+        );
+        if (isSamePassword) {
+            throw new BadRequestException(
+                'New password must be different from current password'
+            );
+        }
+
+        try {
+            // Hash new password
+            const hashedNewPassword = await cryptPassword(newPassword);
+
+            // Update password in database
+            await this.prismaService.user.update({
+                where: { id: userId },
+                data: {
+                    password: hashedNewPassword
+                }
+            });
+
+            return { message: 'Password changed successfully' };
+        } catch (error) {
+            throw new Error(`Failed to change password: ${error.message}`);
         }
     }
 }

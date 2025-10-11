@@ -44,7 +44,8 @@ export class AuthService {
                 sub: user.id, // Standard JWT subject
                 name: user.name,
                 email: user.email,
-                image: user.profilePicture
+                image: user.profilePicture,
+                bio : user.bio
             },
             {
                 expiresIn: '15m'
