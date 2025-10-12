@@ -11,10 +11,47 @@ model User {
   id               String    @id @default(auto()) @map("_id") @db.ObjectId
   email            String    @unique
   name             String
-  bio             String?
+  bio              String?
   password         String
-  profilePicture            String?
+  profilePicture   String?
   otpCode          String?
   otpCodeExpiresAt DateTime?
   isEmailVerified  Boolean   @default(false)
+  
+  // Relations
+  tasks            Task[]
+}
+
+model Task {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
 }
