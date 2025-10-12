@@ -9,6 +9,7 @@ import { PrismaService } from './core/services/prisma.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { FileUploadModule } from './modules/file-upload/file-upload.module';
 import { UserModule } from './modules/user/user.module';
+import { TaskModule } from './modules/task/task.module';
 import { mailerConfig } from './config/mailer.config';
 
 @Module({
@@ -59,7 +60,8 @@ import { mailerConfig } from './config/mailer.config';
 
         FileUploadModule,
         AuthModule,
-        UserModule
+        UserModule,
+        TaskModule
     ],
     controllers: [],
     providers: [PrismaService]
