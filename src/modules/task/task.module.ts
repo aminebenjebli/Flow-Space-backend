@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from '../../core/services/prisma.service';
+import { TokenBlacklistService } from '../../core/services/token-blacklist.service';
 import { AuthGuard } from '../../core/common/guards/auth.guard';
 import { TaskController } from './task.controller';
 import { TaskService } from './task.service';
@@ -19,7 +20,7 @@ import { TaskService } from './task.service';
         })
     ],
     controllers: [TaskController],
-    providers: [TaskService, PrismaService, AuthGuard],
+    providers: [TaskService, PrismaService, TokenBlacklistService, AuthGuard],
     exports: [TaskService]
 })
 export class TaskModule {}

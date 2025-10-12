@@ -6,6 +6,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { join } from 'path';
 import { LoggerMiddleware } from './core/common/middleware/logger.middleware';
 import { PrismaService } from './core/services/prisma.service';
+import { TokenBlacklistService } from './core/services/token-blacklist.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { FileUploadModule } from './modules/file-upload/file-upload.module';
 import { UserModule } from './modules/user/user.module';
@@ -64,7 +65,7 @@ import { mailerConfig } from './config/mailer.config';
         TaskModule
     ],
     controllers: [],
-    providers: [PrismaService]
+    providers: [PrismaService, TokenBlacklistService]
 })
 export class AppModule implements NestModule {
     configure(consumer: MiddlewareConsumer) {

@@ -1,11 +1,19 @@
-import { Body, Controller, Post } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Post, UseGuards, Request } from '@nestjs/common';
+import {
+    ApiBody,
+    ApiOperation,
+    ApiResponse,
+    ApiTags,
+    ApiBearerAuth
+} from '@nestjs/swagger';
 import { FileUploadService } from '../file-upload/file-upload.service';
 import { AuthService } from './auth.service';
 import { ForgetPasswordDto } from './dto/forget-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { LogoutDto } from './dto/logout.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { AuthGuard } from '../../core/common/guards/auth.guard';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -63,5 +71,30 @@ export class AuthController {
             resetPasswordDto.email,
             resetPasswordDto.password
         );
+    }
+
+    @Post('logout')
+    @UseGuards(AuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary: 'Logout user',
+        description:
+            'Invalidates the current access token and optionally the refresh token'
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Logout successful',
+        schema: {
+            example: {
+                message: 'Logout successful'
+            }
+        }
+    })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    async logout(@Request() req: any, @Body() logoutDto?: LogoutDto) {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        const userId = req.user.sub;
+
+        return this.authService.logout(token, userId);
     }
 }

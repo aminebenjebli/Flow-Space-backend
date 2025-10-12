@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from '../../core/services/prisma.service';
+import { TokenBlacklistService } from '../../core/services/token-blacklist.service';
 import { CloudinaryService } from '../../core/services/cloudinary.service';
 import { CloudinaryProvider } from '../../config/cloudinary.config';
 import { AuthGuard } from '../../core/common/guards/auth.guard';
@@ -24,6 +25,7 @@ import { UserService } from './user.service';
     providers: [
         UserService,
         PrismaService,
+        TokenBlacklistService,
         CloudinaryService,
         CloudinaryProvider,
         AuthGuard

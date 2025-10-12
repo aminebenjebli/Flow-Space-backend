@@ -11,7 +11,7 @@ A complete NestJS Task module implementation with MongoDB/Prisma integration, fe
 - **ObjectId**: Primary key with `@id @default(auto()) @map("_id") @db.ObjectId`
 - **User Relationship**: Foreign key `userId` as ObjectId string with cascade delete
 - **Enums**: TaskStatus (TODO, IN_PROGRESS, DONE, CANCELLED) and TaskPriority (LOW, MEDIUM, HIGH, URGENT)
-- **Timestamps**: Automatic `createdAt`, `updatedAt`, and optional `completedAt`
+- **Timestamps**: Automatic `createdAt`, `updatedAt`.
 - **Indexes**: Optimized for querying by userId, status, priority, and dueDate
 
 ### 📝 **DTOs** (`src/modules/task/dto/task.dto.ts`)
@@ -24,7 +24,7 @@ A complete NestJS Task module implementation with MongoDB/Prisma integration, fe
 ### 🔧 **Service Layer** (`src/modules/task/task.service.ts`)
 
 - **CRUD Operations**: Create, Read, Update, Delete with user ownership validation
-- **Advanced Filtering**: Status, priority, date range, search, completion status
+- **Advanced Filtering**: Status, priority, date range, search.
 - **Pagination**: Configurable with max limit protection
 - **Sorting**: Multiple fields with custom priority ordering
 - **Statistics**: Task counts by status and overdue tracking
@@ -169,7 +169,6 @@ model Task {
   status      TaskStatus   @default(TODO)
   priority    TaskPriority @default(MEDIUM)
   dueDate     DateTime?    // Optional due date
-  completedAt DateTime?    // Auto-set when marked complete
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   userId      String       @db.ObjectId // Foreign key

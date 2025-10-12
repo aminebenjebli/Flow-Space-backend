@@ -20,6 +20,22 @@ model User {
   
   // Relations
   tasks            Task[]
+  blacklistedTokens BlacklistedToken[]
+}
+
+model BlacklistedToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  token     String
+  userId    String   @db.ObjectId
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([token])
+  @@index([expiresAt])
+  @@index([userId])
 }
 
 model Task {

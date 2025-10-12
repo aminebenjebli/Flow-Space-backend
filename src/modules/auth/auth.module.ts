@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from '../../core/services/prisma.service';
+import { TokenBlacklistService } from '../../core/services/token-blacklist.service';
 import { FileUploadService } from '../file-upload/file-upload.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -19,6 +20,11 @@ import { AuthService } from './auth.service';
         })
     ],
     controllers: [AuthController],
-    providers: [AuthService, PrismaService, FileUploadService]
+    providers: [
+        AuthService,
+        PrismaService,
+        FileUploadService,
+        TokenBlacklistService
+    ]
 })
 export class AuthModule {}

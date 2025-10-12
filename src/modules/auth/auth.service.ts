@@ -2,6 +2,7 @@ import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../core/services/prisma.service';
+import { TokenBlacklistService } from '../../core/services/token-blacklist.service';
 import {
     comparePassword,
     cryptPassword,
@@ -22,6 +23,7 @@ export class AuthService {
         private readonly prisma: PrismaService,
         private readonly jwtService: JwtService,
         private readonly mailerService: MailerService,
+        private readonly tokenBlacklistService: TokenBlacklistService
     ) {}
 
     async signIn(credentials: LoginDto) {
@@ -45,7 +47,7 @@ export class AuthService {
                 name: user.name,
                 email: user.email,
                 image: user.profilePicture,
-                bio : user.bio
+                bio: user.bio
             },
             {
                 expiresIn: '15m'
@@ -206,5 +208,32 @@ export class AuthService {
             where: { email },
             data: { password: hashedPassword }
         });
+    }
+
+    async logout(token: string, userId: string): Promise<{ message: string }> {
+        try {
+            // Decode the token to get expiration time
+            const decoded = this.jwtService.decode(token) as any;
+            const expiresAt = new Date(decoded.exp * 1000);
+
+            // Blacklist the token
+            await this.tokenBlacklistService.blacklistToken(
+                token,
+                userId,
+                expiresAt
+            );
+
+            return { message: 'Logged out successfully' };
+        } catch (error) {
+            throw new UnauthorizedException('Invalid token');
+        }
+    }
+
+    async isTokenBlacklisted(token: string): Promise<boolean> {
+        return this.tokenBlacklistService.isTokenBlacklisted(token);
+    }
+
+    async cleanupExpiredTokens(): Promise<void> {
+        await this.tokenBlacklistService.cleanupExpiredTokens();
     }
 }
