@@ -2,6 +2,7 @@ import {
     Controller,
     Get,
     Post,
+    Put,
     Body,
     Param,
     UseGuards,
@@ -145,7 +146,96 @@ export class TeamController {
         @Param('teamId') teamId: string,
         @Param('userId') userId: string
     ) {
+        console.log('DEBUG - removeMember controller:', { 
+            requesterId: req.user.sub, 
+            teamId, 
+            targetUserId: userId,
+            url: req.url 
+        });
         return this.teamService.removeMember(req.user.sub, teamId, userId);
+    }
+
+    @Post(':teamId/leave')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Leave a team (member leaves voluntarily)' })
+    @ApiParam({ name: 'teamId', description: 'Team ID', example: '507f1f77bcf86cd799439011' })
+    @ApiResponse({
+        status: 200,
+        description: 'Successfully left the team',
+        schema: {
+            type: 'object',
+            properties: {
+                message: { type: 'string', example: 'Successfully left the team' }
+            }
+        }
+    })
+    @ApiResponse({ status: 400, description: 'Cannot leave - you are the only owner' })
+    @ApiResponse({ status: 404, description: 'Team not found or not a member' })
+    async leaveTeam(
+        @Request() req: any,
+        @Param('teamId') teamId: string
+    ) {
+        return this.teamService.leaveTeam(req.user.sub, teamId);
+    }
+
+    @Put(':teamId/settings')
+    @ApiOperation({ summary: 'Update team settings (ADMIN/OWNER only)' })
+    @ApiParam({ name: 'teamId', description: 'Team ID', example: '507f1f77bcf86cd799439011' })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                name: { type: 'string', example: 'Updated Team Name' },
+                description: { type: 'string', example: 'Updated description' }
+            }
+        }
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Team settings updated successfully',
+        type: TeamResponseDto
+    })
+    @ApiResponse({ status: 403, description: 'Insufficient privileges (ADMIN/OWNER required)' })
+    @ApiResponse({ status: 404, description: 'Team not found' })
+    async updateTeamSettings(
+        @Request() req: any,
+        @Param('teamId') teamId: string,
+        @Body() updateData: { name?: string; description?: string }
+    ) {
+        return this.teamService.updateTeamSettings(req.user.sub, teamId, updateData);
+    }
+
+    @Get(':teamId/activity')
+    @ApiOperation({ summary: 'Get team activity dashboard data' })
+    @ApiParam({ name: 'teamId', description: 'Team ID', example: '507f1f77bcf86cd799439011' })
+    @ApiResponse({
+        status: 200,
+        description: 'Team activity data',
+        schema: {
+            type: 'object',
+            properties: {
+                recentTasks: {
+                    type: 'array',
+                    description: 'Recently created or updated tasks by team members'
+                },
+                memberStats: {
+                    type: 'array',
+                    description: 'Task statistics per team member'
+                },
+                projectStats: {
+                    type: 'object',
+                    description: 'Statistics per project'
+                }
+            }
+        }
+    })
+    @ApiResponse({ status: 403, description: 'Not a team member' })
+    @ApiResponse({ status: 404, description: 'Team not found' })
+    async getTeamActivity(
+        @Request() req: any,
+        @Param('teamId') teamId: string
+    ) {
+        return this.teamService.getTeamActivity(req.user.sub, teamId);
     }
 
     @Get('invite/accept/:token')
@@ -170,5 +260,52 @@ export class TeamController {
             // Redirect to frontend invite page with token for manual processing
             return res.redirect(`${frontendUrl}/teams/invite/accept/${token}?error=${encodeURIComponent(error.message)}`);
         }
+    }
+
+    @Put('/:teamId/members/:memberId/role')
+    @ApiOperation({ summary: 'Update team member role' })
+    @ApiParam({ name: 'teamId', description: 'Team ID' })
+    @ApiParam({ name: 'memberId', description: 'Member ID' })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                role: {
+                    type: 'string',
+                    enum: ['ADMIN', 'MEMBER'],
+                    description: 'New role for the member'
+                }
+            },
+            required: ['role']
+        }
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Member role updated successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                message: { type: 'string', example: 'Member role updated successfully' },
+                member: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string' },
+                        role: { type: 'string' },
+                        name: { type: 'string' },
+                        email: { type: 'string' }
+                    }
+                }
+            }
+        }
+    })
+    @ApiResponse({ status: 403, description: 'Only team owners can update member roles' })
+    @ApiResponse({ status: 404, description: 'Team or member not found' })
+    async updateMemberRole(
+        @Request() req: any,
+        @Param('teamId') teamId: string,
+        @Param('memberId') memberId: string,
+        @Body() body: { role: 'ADMIN' | 'MEMBER' }
+    ) {
+        return this.teamService.updateMemberRole(req.user.sub, teamId, memberId, body.role);
     }
 }

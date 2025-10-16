@@ -325,6 +325,7 @@ export class TeamService {
      * Remove a member from a team
      */
     async removeMember(userId: string, teamId: string, targetUserId: string): Promise<{ message: string }> {
+        console.log('DEBUG - removeMember service:', { userId, teamId, targetUserId });
         // Check if user has admin privileges
         await this.teamAccessService.assertAdmin(userId, teamId);
 
@@ -437,5 +438,335 @@ export class TeamService {
                 baseUrl
             }
         });
+    }
+
+    /**
+     * Leave a team (member leaves voluntarily)
+     */
+    async leaveTeam(userId: string, teamId: string): Promise<{ message: string }> {
+        // Find the team and user's membership
+        const team = await this.prismaService.team.findUnique({
+            where: { id: teamId },
+            include: {
+                members: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!team) {
+            throw new NotFoundException('Team not found');
+        }
+
+        // Find user's membership
+        const userMembership = team.members.find(member => member.userId === userId);
+        if (!userMembership) {
+            throw new NotFoundException('You are not a member of this team');
+        }
+
+        // Check if user is the only owner
+        const owners = team.members.filter(member => member.role === TeamRole.OWNER);
+        if (userMembership.role === TeamRole.OWNER && owners.length === 1) {
+            throw new BadRequestException('Cannot leave team - you are the only owner. Transfer ownership first or delete the team.');
+        }
+
+        // Remove the membership
+        await this.prismaService.teamMember.delete({
+            where: { id: userMembership.id }
+        });
+
+        return { message: 'Successfully left the team' };
+    }
+
+    /**
+     * Update team settings (name, description)
+     */
+    async updateTeamSettings(userId: string, teamId: string, updateData: { name?: string; description?: string }): Promise<TeamResponseDto> {
+        // Check if user has admin privileges
+        await this.teamAccessService.assertAdmin(userId, teamId);
+
+        // Validate if name already exists (if name is being updated)
+        if (updateData.name) {
+            const existingTeam = await this.prismaService.team.findFirst({
+                where: {
+                    name: updateData.name,
+                    id: { not: teamId }, // Exclude current team
+                    members: {
+                        some: {
+                            userId: userId
+                        }
+                    }
+                }
+            });
+
+            if (existingTeam) {
+                throw new ConflictException('You already have a team with this name');
+            }
+        }
+
+        // Update team
+        const updatedTeam = await this.prismaService.team.update({
+            where: { id: teamId },
+            data: updateData,
+            include: {
+                members: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true
+                            }
+                        }
+                    }
+                },
+                projects: {
+                    select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        visibility: true,
+                        createdAt: true
+                    }
+                }
+            }
+        });
+
+        return {
+            id: updatedTeam.id,
+            name: updatedTeam.name,
+            description: updatedTeam.description,
+            createdAt: updatedTeam.createdAt,
+            members: updatedTeam.members.map(member => ({
+                id: member.id,
+                name: member.user.name,
+                email: member.user.email,
+                role: member.role,
+                joinedAt: member.joinedAt
+            })),
+            projects: updatedTeam.projects
+        };
+    }
+
+    /**
+     * Get team activity dashboard data
+     */
+    async getTeamActivity(userId: string, teamId: string) {
+        // Check if user is a team member
+        await this.teamAccessService.assertMember(userId, teamId);
+
+        // Get team with members for querying tasks
+        const team = await this.prismaService.team.findUnique({
+            where: { id: teamId },
+            include: {
+                members: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true
+                            }
+                        }
+                    }
+                },
+                projects: {
+                    select: {
+                        id: true,
+                        name: true,
+                        _count: {
+                            select: {
+                                tasks: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!team) {
+            throw new NotFoundException('Team not found');
+        }
+
+        const memberIds = team.members.map(member => member.userId);
+
+        // Get recent tasks from team members (last 30 days)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const recentTasks = await this.prismaService.task.findMany({
+            where: {
+                userId: { in: memberIds },
+                OR: [
+                    { createdAt: { gte: thirtyDaysAgo } },
+                    { updatedAt: { gte: thirtyDaysAgo } }
+                ]
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true
+                    }
+                },
+                project: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                }
+            },
+            orderBy: { updatedAt: 'desc' },
+            take: 20
+        });
+
+        // Get member statistics
+        const memberStats = await Promise.all(
+            team.members.map(async (member) => {
+                const [totalTasks, completedTasks, inProgressTasks] = await Promise.all([
+                    this.prismaService.task.count({
+                        where: { userId: member.userId }
+                    }),
+                    this.prismaService.task.count({
+                        where: { 
+                            userId: member.userId,
+                            status: 'DONE'
+                        }
+                    }),
+                    this.prismaService.task.count({
+                        where: { 
+                            userId: member.userId,
+                            status: 'IN_PROGRESS'
+                        }
+                    })
+                ]);
+
+                return {
+                    userId: member.userId,
+                    name: member.user.name,
+                    email: member.user.email,
+                    role: member.role,
+                    totalTasks,
+                    completedTasks,
+                    inProgressTasks,
+                    completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+                };
+            })
+        );
+
+        // Project statistics
+        const projectStats = team.projects.map(project => ({
+            id: project.id,
+            name: project.name,
+            taskCount: project._count.tasks
+        }));
+
+        return {
+            recentTasks: recentTasks.map(task => ({
+                id: task.id,
+                title: task.title,
+                status: task.status,
+                priority: task.priority,
+                createdAt: task.createdAt,
+                updatedAt: task.updatedAt,
+                user: task.user,
+                project: task.project
+            })),
+            memberStats,
+            projectStats,
+            teamSummary: {
+                totalMembers: team.members.length,
+                totalProjects: team.projects.length,
+                totalTasks: memberStats.reduce((sum, member) => sum + member.totalTasks, 0),
+                completedTasks: memberStats.reduce((sum, member) => sum + member.completedTasks, 0)
+            }
+        };
+    }
+
+    /**
+     * Update a team member's role (only owners can do this)
+     */
+    async updateMemberRole(
+        userId: string, 
+        teamId: string, 
+        memberId: string, 
+        newRole: 'ADMIN' | 'MEMBER'
+    ): Promise<{ message: string; member: any }> {
+        // Verify that the requesting user is the team owner
+        const requesterMembership = await this.prismaService.teamMember.findFirst({
+            where: {
+                teamId: teamId,
+                userId: userId
+            }
+        });
+        
+        if (!requesterMembership || requesterMembership.role !== 'OWNER') {
+            throw new BadRequestException('Only team owners can update member roles');
+        }
+
+        // Find the member to update - try by memberId first, then by userId
+        let targetMember = await this.prismaService.teamMember.findFirst({
+            where: {
+                id: memberId,
+                teamId: teamId
+            },
+            include: {
+                user: true
+            }
+        });
+
+        // If not found by teamMember.id, try by userId
+        if (!targetMember) {
+            targetMember = await this.prismaService.teamMember.findFirst({
+                where: {
+                    userId: memberId,
+                    teamId: teamId
+                },
+                include: {
+                    user: true
+                }
+            });
+        }
+
+        if (!targetMember) {
+            throw new NotFoundException('Member not found in this team');
+        }
+
+        // Cannot change role of the team owner
+        if (targetMember.role === 'OWNER') {
+            throw new BadRequestException('Cannot change the role of the team owner');
+        }
+
+        // Update the member's role using the actual teamMember.id
+        const updatedMember = await this.prismaService.teamMember.update({
+            where: {
+                id: targetMember.id
+            },
+            data: {
+                role: newRole as TeamRole
+            },
+            include: {
+                user: true
+            }
+        });
+
+        return {
+            message: 'Member role updated successfully',
+            member: {
+                id: updatedMember.id,
+                role: updatedMember.role,
+                name: updatedMember.user.name,
+                email: updatedMember.user.email
+            }
+        };
     }
 }
