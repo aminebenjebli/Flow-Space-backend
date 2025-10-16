@@ -75,6 +75,61 @@ export class ProjectController {
         return this.projectService.getProjectsByTeam(req.user.sub, teamId);
     }
 
+    @Get('personal')
+    @ApiOperation({ summary: 'Get all personal projects of the authenticated user' })
+    @ApiResponse({
+        status: 200,
+        description: 'List of personal projects',
+        type: [ProjectResponseDto]
+    })
+    async getPersonalProjects(@Request() req: any): Promise<ProjectResponseDto[]> {
+        return this.projectService.getPersonalProjects(req.user.sub);
+    }
+
+    @Get('public')
+    @ApiOperation({ summary: 'Get all public projects' })
+    @ApiResponse({
+        status: 200,
+        description: 'Public projects retrieved successfully',
+        schema: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string', example: '507f1f77bcf86cd799439011' },
+                    name: { type: 'string', example: 'Open Source Project' },
+                    description: { type: 'string', example: 'A public project description' },
+                    visibility: { type: 'string', example: 'PUBLIC' },
+                    createdAt: { type: 'string', format: 'date-time' },
+                    team: {
+                        type: 'object',
+                        properties: {
+                            id: { type: 'string' },
+                            name: { type: 'string' }
+                        }
+                    },
+                    _count: {
+                        type: 'object',
+                        properties: {
+                            tasks: { type: 'number' }
+                        }
+                    }
+                }
+            }
+        }
+    })
+    async getPublicProjects(@Request() req: any) {
+        try {
+            console.log('DEBUG - Controller getPublicProjects: Starting...');
+            const result = await this.projectService.getPublicProjects();
+            console.log('DEBUG - Controller getPublicProjects: Success, returning', result.length, 'projects');
+            return result;
+        } catch (error) {
+            console.error('DEBUG - Controller getPublicProjects error:', error);
+            throw error;
+        }
+    }
+
     @Get(':projectId')
     @ApiOperation({ summary: 'Get a specific project by ID' })
     @ApiParam({ name: 'projectId', description: 'Project ID', example: '507f1f77bcf86cd799439012' })
@@ -197,41 +252,5 @@ export class ProjectController {
         @Param('projectId') projectId: string
     ) {
         return this.projectService.deleteProject(req.user.sub, projectId);
-    }
-
-    @Get('/public')
-    @ApiOperation({ summary: 'Get all public projects' })
-    @ApiResponse({
-        status: 200,
-        description: 'Public projects retrieved successfully',
-        schema: {
-            type: 'array',
-            items: {
-                type: 'object',
-                properties: {
-                    id: { type: 'string', example: '507f1f77bcf86cd799439011' },
-                    name: { type: 'string', example: 'Open Source Project' },
-                    description: { type: 'string', example: 'A public project description' },
-                    visibility: { type: 'string', example: 'PUBLIC' },
-                    createdAt: { type: 'string', format: 'date-time' },
-                    team: {
-                        type: 'object',
-                        properties: {
-                            id: { type: 'string' },
-                            name: { type: 'string' }
-                        }
-                    },
-                    _count: {
-                        type: 'object',
-                        properties: {
-                            tasks: { type: 'number' }
-                        }
-                    }
-                }
-            }
-        }
-    })
-    async getPublicProjects(@Request() req: any) {
-        return this.projectService.getPublicProjects();
     }
 }

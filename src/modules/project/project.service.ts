@@ -134,6 +134,47 @@ export class ProjectService {
     }
 
     /**
+     * Get all personal projects of a user (projects without team)
+     */
+    async getPersonalProjects(userId: string): Promise<ProjectResponseDto[]> {
+        const projects = await this.prismaService.project.findMany({
+            where: {
+                ownerId: userId,
+                teamId: null // Personal projects have no team
+            },
+            include: {
+                owner: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true
+                    }
+                },
+                _count: {
+                    select: {
+                        tasks: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+
+        return projects.map(project => ({
+            id: project.id,
+            ownerId: project.ownerId,
+            teamId: project.teamId,
+            name: project.name,
+            description: project.description,
+            visibility: project.visibility as ProjectVisibility,
+            createdAt: project.createdAt,
+            team: null, // Personal projects have no team
+            taskCount: project._count.tasks
+        }));
+    }
+
+    /**
      * Get a single project by ID (with team membership check)
      */
     async getProjectById(userId: string, projectId: string): Promise<ProjectResponseDto> {
@@ -420,28 +461,49 @@ export class ProjectService {
      * Get all public projects across all teams
      */
     async getPublicProjects(): Promise<any[]> {
-        const publicProjects = await this.prismaService.project.findMany({
-            where: {
-                visibility: 'PUBLIC'
-            },
-            include: {
-                team: {
-                    select: {
-                        id: true,
-                        name: true
+        try {
+            console.log('DEBUG - getPublicProjects: Starting query for public projects');
+            
+            // First check if we can access the database
+            const projectCount = await this.prismaService.project.count();
+            console.log('DEBUG - Total projects in database:', projectCount);
+            
+            const publicProjects = await this.prismaService.project.findMany({
+                where: {
+                    visibility: PrismaProjectVisibility.PUBLIC
+                },
+                include: {
+                    owner: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true
+                        }
+                    },
+                    team: {
+                        select: {
+                            id: true,
+                            name: true
+                        }
+                    },
+                    _count: {
+                        select: {
+                            tasks: true
+                        }
                     }
                 },
-                _count: {
-                    select: {
-                        tasks: true
-                    }
+                orderBy: {
+                    createdAt: 'desc'
                 }
-            },
-            orderBy: {
-                createdAt: 'desc'
-            }
-        });
+            });
 
-        return publicProjects;
+            console.log('DEBUG - getPublicProjects: Found', publicProjects.length, 'public projects');
+            return publicProjects;
+            
+        } catch (error) {
+            console.error('DEBUG - getPublicProjects error:', error);
+            console.error('DEBUG - Error stack:', error.stack);
+            throw error;
+        }
     }
 }
