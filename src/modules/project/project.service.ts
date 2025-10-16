@@ -415,4 +415,33 @@ export class ProjectService {
 
         return { message: 'Project deleted successfully' };
     }
+
+    /**
+     * Get all public projects across all teams
+     */
+    async getPublicProjects(): Promise<any[]> {
+        const publicProjects = await this.prismaService.project.findMany({
+            where: {
+                visibility: 'PUBLIC'
+            },
+            include: {
+                team: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                },
+                _count: {
+                    select: {
+                        tasks: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+
+        return publicProjects;
+    }
 }

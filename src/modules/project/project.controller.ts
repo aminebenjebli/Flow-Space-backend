@@ -198,4 +198,40 @@ export class ProjectController {
     ) {
         return this.projectService.deleteProject(req.user.sub, projectId);
     }
+
+    @Get('/public')
+    @ApiOperation({ summary: 'Get all public projects' })
+    @ApiResponse({
+        status: 200,
+        description: 'Public projects retrieved successfully',
+        schema: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string', example: '507f1f77bcf86cd799439011' },
+                    name: { type: 'string', example: 'Open Source Project' },
+                    description: { type: 'string', example: 'A public project description' },
+                    visibility: { type: 'string', example: 'PUBLIC' },
+                    createdAt: { type: 'string', format: 'date-time' },
+                    team: {
+                        type: 'object',
+                        properties: {
+                            id: { type: 'string' },
+                            name: { type: 'string' }
+                        }
+                    },
+                    _count: {
+                        type: 'object',
+                        properties: {
+                            tasks: { type: 'number' }
+                        }
+                    }
+                }
+            }
+        }
+    })
+    async getPublicProjects(@Request() req: any) {
+        return this.projectService.getPublicProjects();
+    }
 }
