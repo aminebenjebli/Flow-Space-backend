@@ -6,6 +6,7 @@ import {
     Param,
     Patch,
     Post,
+    Query,
     UploadedFile,
     UseInterceptors,
     UseGuards
@@ -46,6 +47,18 @@ export class UserController {
     })
     create(@Body() createUserDto: CreateUserDto): Promise<User> {
         return this.userService.create(createUserDto);
+    }
+
+    @Get('check-email')
+    @UseGuards(AuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary: 'Check if email exists',
+        description: 'Verifies if a user with the given email exists in the system'
+    })
+    @ApiOkResponse({ description: 'Email check result' })
+    async checkEmail(@Query('email') email: string) {
+        return this.userService.checkEmailExists(email);
     }
 
     @Get()

@@ -8,7 +8,8 @@ import {
     MinLength,
     MaxLength,
     IsArray,
-    ArrayNotEmpty
+    ArrayNotEmpty,
+    IsMongoId
 } from 'class-validator';
 
 export enum TaskStatus {
@@ -76,6 +77,16 @@ export class CreateTaskDto {
     @IsOptional()
     @IsDateString({}, { message: 'Due date must be a valid ISO date string' })
     dueDate?: string;
+
+    @ApiProperty({
+        example: '507f1f77bcf86cd799439011',
+        description: 'Project ID (optional - assigns task to a project)',
+        required: false
+    })
+    @IsOptional()
+    @IsString({ message: 'Project ID must be a string' })
+    @IsMongoId({ message: 'Project ID must be a valid MongoDB ObjectId' })
+    projectId?: string;
 }
 
 export class UpdateTaskDto extends PartialType(CreateTaskDto) {
@@ -128,6 +139,16 @@ export class QueryTaskDto {
     @IsOptional()
     @IsDateString({}, { message: 'Due until must be a valid date' })
     dueUntil?: string;
+
+    @ApiProperty({
+        example: '507f1f77bcf86cd799439011',
+        description: 'Filter tasks by project ID',
+        required: false
+    })
+    @IsOptional()
+    @IsString({ message: 'Project ID must be a string' })
+    @IsMongoId({ message: 'Project ID must be a valid MongoDB ObjectId' })
+    projectId?: string;
 
     @ApiProperty({
         example: '1',

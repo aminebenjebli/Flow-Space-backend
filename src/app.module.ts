@@ -11,7 +11,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { FileUploadModule } from './modules/file-upload/file-upload.module';
 import { UserModule } from './modules/user/user.module';
 import { TaskModule } from './modules/task/task.module';
-import { mailerConfig } from './config/mailer.config';
+import { TeamModule } from './modules/team/team.module';
+import { ProjectModule } from './modules/project/project.module';
 
 @Module({
     imports: [
@@ -57,12 +58,12 @@ import { mailerConfig } from './config/mailer.config';
             })
         }),
 
-        MailerModule.forRoot(mailerConfig),
-
         FileUploadModule,
         AuthModule,
         UserModule,
-        TaskModule
+        TaskModule,
+        TeamModule,
+        ProjectModule
     ],
     controllers: [],
     providers: [PrismaService, TokenBlacklistService]

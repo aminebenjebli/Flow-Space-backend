@@ -216,4 +216,32 @@ export class UserService extends BaseService<
             throw new Error(`Failed to change password: ${error.message}`);
         }
     }
+
+    async checkEmailExists(email: string): Promise<{
+        exists: boolean;
+        user?: Partial<User>;
+    }> {
+        if (!email) {
+            throw new BadRequestException('Email is required');
+        }
+
+        try {
+            const user = await this.prismaService.user.findUnique({
+                where: { email: email.toLowerCase().trim() },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    profilePicture: true
+                }
+            });
+
+            return {
+                exists: !!user,
+                user: user || undefined
+            };
+        } catch (error) {
+            throw new Error(`Failed to check email: ${error.message}`);
+        }
+    }
 }
