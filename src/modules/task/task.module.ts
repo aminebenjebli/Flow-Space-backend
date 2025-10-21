@@ -6,6 +6,7 @@ import { TokenBlacklistService } from '../../core/services/token-blacklist.servi
 import { AuthGuard } from '../../core/common/guards/auth.guard';
 import { TaskController } from './task.controller';
 import { TaskService } from './task.service';
+import { TaskAiModule } from '../task-ai/task-ai.module';
 
 @Module({
     imports: [
@@ -18,6 +19,8 @@ import { TaskService } from './task.service';
                 signOptions: { expiresIn: '1d' }
             })
         })
+        ,
+        TaskAiModule
     ],
     controllers: [TaskController],
     providers: [TaskService, PrismaService, TokenBlacklistService, AuthGuard],

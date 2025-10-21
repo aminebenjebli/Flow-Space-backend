@@ -12,6 +12,8 @@ import { FileUploadModule } from './modules/file-upload/file-upload.module';
 import { UserModule } from './modules/user/user.module';
 import { TaskModule } from './modules/task/task.module';
 import { mailerConfig } from './config/mailer.config';
+import { WhisperModule } from './modules/whisper/whisper.module';
+import { TaskAiModule } from './modules/task-ai/task-ai.module';
 
 @Module({
     imports: [
@@ -62,7 +64,10 @@ import { mailerConfig } from './config/mailer.config';
         FileUploadModule,
         AuthModule,
         UserModule,
-        TaskModule
+        TaskModule,
+        TaskAiModule,
+        WhisperModule,
+        
     ],
     controllers: [],
     providers: [PrismaService, TokenBlacklistService]

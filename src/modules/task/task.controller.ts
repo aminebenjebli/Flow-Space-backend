@@ -18,10 +18,13 @@ import {
     ApiResponse,
     ApiBearerAuth,
     ApiQuery,
-    ApiParam
+    ApiParam,
+    ApiBody
 } from '@nestjs/swagger';
 import { Task } from '@prisma/client';
 import { TaskService, PaginatedTasks } from './task.service';
+import { TextGenerationService } from '../task-ai/services/text-generation.service';
+import { ParseTaskDto } from '../task-ai/dto/parse-task.dto';
 import {
     CreateTaskDto,
     UpdateTaskDto,
@@ -46,7 +49,7 @@ interface AuthenticatedRequest extends Request {
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
 export class TaskController {
-    constructor(private readonly taskService: TaskService) {}
+    constructor(private readonly taskService: TaskService, private readonly textGenService: TextGenerationService) {}
 
     @Post()
     @ApiOperation({
@@ -247,4 +250,23 @@ export class TaskController {
             bulkUpdateDto.status
         );
     }
+
+        @Post('parse')
+        @ApiBody({ type: ParseTaskDto })
+        async parseTask(@Body() body: ParseTaskDto) {
+            const { input } = body;
+
+            // Génération automatique via HF API
+            const generated = await this.textGenService.generateTask(input);
+
+            // Détection de date
+            const parsedDate = this.taskService.parseUserText(input).dueDate;
+
+            // ✅ Pas besoin de JSON.parse ici
+            return {
+                ...generated,
+                dueDate: parsedDate ?? null,
+            };
+        }
+    
 }

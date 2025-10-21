@@ -3,6 +3,7 @@ import {
     NotFoundException,
     ForbiddenException
 } from '@nestjs/common';
+const chrono: any = require('chrono-node');
 import { Task, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/services/prisma.service';
 import {
@@ -364,4 +365,78 @@ export class TaskService {
         });
         return { count: result.count };
     }
+    parseUserText(input: string) {
+            // Multilingue : on essaie plusieurs parseurs locaux de chrono-node
+            // chrono-node fournit des parseurs par langue : chrono.fr, chrono.es, chrono.pt, chrono.de, etc.
+            // Stratégie : heuristique rapide pour détecter la langue, sinon tenter FR/ES/PT/DE/EN dans cet ordre.
+            const text = (input || '').trim();
+            if (!text) return { dueDate: null, parsedText: null };
+
+            // Heuristique simple basé sur mots-clés pour favoriser certains parseurs
+            const lower = text.toLowerCase();
+            const langHints: { [k: string]: string[] } = {
+                fr: ['aujourd', 'demain', 'prochain', 'prochaine', 'janvier', 'févr', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'sept', 'oct', 'nov', 'déc'],
+                es: ['mañana', 'próxima', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'],
+                pt: ['amanhã', 'próxima', 'próximo', 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'],
+                de: ['morgen', 'nächste', 'januar', 'februar', 'märz', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'dezember']
+            };
+
+            let preferredOrder: Array<any> = [];
+            try {
+                // Build parser order based on hints
+                const foundLangs: string[] = [];
+                for (const [lang, hints] of Object.entries(langHints)) {
+                    for (const h of hints) {
+                        if (lower.includes(h)) {
+                            foundLangs.push(lang);
+                            break;
+                        }
+                    }
+                }
+
+                const parsers: { [k: string]: any } = {
+                    fr: (chrono as any).fr,
+                    es: (chrono as any).es,
+                    pt: (chrono as any).pt,
+                    de: (chrono as any).de,
+                    en: chrono
+                };
+
+                // If we detected hints, try those first (unique)
+                for (const lang of Array.from(new Set(foundLangs))) {
+                    if (parsers[lang]) preferredOrder.push(parsers[lang]);
+                }
+
+                // Then the default full order
+                for (const lang of ['fr', 'es', 'pt', 'de', 'en']) {
+                    const p = parsers[lang];
+                    if (!preferredOrder.includes(p)) preferredOrder.push(p);
+                }
+            } catch (e) {
+                // Fallback order in case of any issue
+                preferredOrder = [(chrono as any).fr, (chrono as any).es, (chrono as any).pt, (chrono as any).de, chrono];
+            }
+
+            let dueDate: Date | null = null;
+            let matchedText: string | null = null;
+            for (const parser of preferredOrder) {
+                try {
+                    if (!parser || typeof parser.parse !== 'function') continue;
+                    const results = parser.parse(text);
+                    if (results && results.length > 0 && results[0].start) {
+                        dueDate = results[0].start.date();
+                        matchedText = results[0].text;
+                        break;
+                    }
+                } catch (err) {
+                    // ignore and try next parser
+                    continue;
+                }
+            }
+
+            return {
+                dueDate,
+                parsedText: matchedText
+            };
+  }
 }
