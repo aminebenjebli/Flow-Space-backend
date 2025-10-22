@@ -102,6 +102,21 @@ export class ProjectResponseDto {
     createdAt: Date;
 
     @ApiProperty({
+        description: 'Project owner information',
+        type: 'object',
+        properties: {
+            id: { type: 'string', example: '507f1f77bcf86cd799439009' },
+            name: { type: 'string', example: 'John Doe' },
+            email: { type: 'string', example: 'john.doe@example.com' }
+        }
+    })
+    owner?: {
+        id: string;
+        name: string;
+        email: string;
+    };
+
+    @ApiProperty({
         description: 'Team information',
         type: 'object',
         properties: {

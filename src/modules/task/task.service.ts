@@ -119,10 +119,11 @@ export class TaskService {
 
         // Build where clause
         const where: Prisma.TaskWhereInput = {
-            userId,
+            // If projectId is specified, show all tasks in that project (for team members)
+            // Otherwise, show only user's personal tasks
+            ...(projectId ? { projectId } : { userId }),
             ...(status && { status }),
             ...(priority && { priority }),
-            ...(projectId && { projectId }),
             ...(dueFrom && {
                 dueDate: {
                     gte: new Date(dueFrom + 'T00:00:00.000Z')

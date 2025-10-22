@@ -128,6 +128,11 @@ export class ProjectService {
             description: project.description,
             visibility: project.visibility as ProjectVisibility,
             createdAt: project.createdAt,
+            owner: project.owner ? {
+                id: project.owner.id,
+                name: project.owner.name,
+                email: project.owner.email
+            } : undefined,
             team: project.team,
             taskCount: project._count.tasks
         }));
@@ -169,6 +174,11 @@ export class ProjectService {
             description: project.description,
             visibility: project.visibility as ProjectVisibility,
             createdAt: project.createdAt,
+            owner: project.owner ? {
+                id: project.owner.id,
+                name: project.owner.name,
+                email: project.owner.email
+            } : undefined,
             team: null, // Personal projects have no team
             taskCount: project._count.tasks
         }));
@@ -231,6 +241,11 @@ export class ProjectService {
             description: project.description,
             visibility: project.visibility as ProjectVisibility,
             createdAt: project.createdAt,
+            owner: project.owner ? {
+                id: project.owner.id,
+                name: project.owner.name,
+                email: project.owner.email
+            } : undefined,
             team: project.team ? {
                 id: project.team.id,
                 name: project.team.name,
@@ -460,7 +475,7 @@ export class ProjectService {
     /**
      * Get all public projects across all teams
      */
-    async getPublicProjects(): Promise<any[]> {
+    async getPublicProjects(): Promise<ProjectResponseDto[]> {
         try {
             console.log('DEBUG - getPublicProjects: Starting query for public projects');
             
@@ -483,7 +498,8 @@ export class ProjectService {
                     team: {
                         select: {
                             id: true,
-                            name: true
+                            name: true,
+                            description: true
                         }
                     },
                     _count: {
@@ -498,7 +514,27 @@ export class ProjectService {
             });
 
             console.log('DEBUG - getPublicProjects: Found', publicProjects.length, 'public projects');
-            return publicProjects;
+            
+            return publicProjects.map(project => ({
+                id: project.id,
+                ownerId: project.ownerId,
+                teamId: project.teamId,
+                name: project.name,
+                description: project.description,
+                visibility: project.visibility as ProjectVisibility,
+                createdAt: project.createdAt,
+                owner: project.owner ? {
+                    id: project.owner.id,
+                    name: project.owner.name,
+                    email: project.owner.email
+                } : undefined,
+                team: project.team ? {
+                    id: project.team.id,
+                    name: project.team.name,
+                    description: project.team.description
+                } : null,
+                taskCount: project._count.tasks
+            }));
             
         } catch (error) {
             console.error('DEBUG - getPublicProjects error:', error);
