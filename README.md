@@ -555,6 +555,187 @@ Ensure you have a backup of your MongoDB data before modifying the schema.
 
 API documentation is available at `/api/docs` when running the server.
 
+### Team & Project Management Endpoints
+
+#### Team Management
+
+**Create Team**
+```bash
+curl -X POST http://localhost:3000/api/v1/teams \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Development Team",
+    "description": "Main development team for the project"
+  }'
+```
+
+**List My Teams**
+```bash
+curl -X GET http://localhost:3000/api/v1/teams/mine \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Invite User to Team** (Sends Email Invitation)
+```bash
+curl -X POST http://localhost:3000/api/v1/teams/{teamId}/invites \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "role": "MEMBER"
+  }'
+```
+
+This will send an email invitation to the specified user with:
+- **One-click join button** (like GitHub) for instant acceptance
+- Team details and invitation context  
+- Secure invitation token with 7-day expiration
+- Role assignment information
+- Alternative methods for API or manual acceptance
+
+**Accept Team Invitation**
+
+Option 1: Direct link from email (one-click):
+```bash
+curl -X GET http://localhost:3000/api/v1/teams/invite/accept/{token} \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+Option 2: Manual API call:
+```bash
+curl -X POST http://localhost:3000/api/v1/teams/accept-invite \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "INVITATION_TOKEN_FROM_EMAIL"
+  }'
+```
+
+**Remove Team Member**
+```bash
+curl -X POST http://localhost:3000/api/v1/teams/{teamId}/remove/{userId} \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+#### Project Management
+
+**Create Project**
+```bash
+curl -X POST http://localhost:3000/api/v1/projects \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "teamId": "TEAM_ID",
+    "name": "Mobile App Project",
+    "description": "Development of the mobile application"
+  }'
+```
+
+**List Projects by Team**
+```bash
+curl -X GET http://localhost:3000/api/v1/projects/by-team/{teamId} \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Get Project Details**
+```bash
+curl -X GET http://localhost:3000/api/v1/projects/{projectId} \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Update Project**
+```bash
+curl -X PUT http://localhost:3000/api/v1/projects/{projectId} \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Project Name",
+    "description": "Updated project description"
+  }'
+```
+
+**Delete Project**
+```bash
+curl -X DELETE http://localhost:3000/api/v1/projects/{projectId} \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+#### Enhanced Task Management
+
+**Create Task with Project**
+```bash
+curl -X POST http://localhost:3000/api/v1/tasks \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Implement user authentication",
+    "description": "Add JWT authentication to the API",
+    "priority": "HIGH",
+    "projectId": "PROJECT_ID",
+    "dueDate": "2025-12-31T23:59:59.000Z"
+  }'
+```
+
+**List Tasks by Project**
+```bash
+curl -X GET "http://localhost:3000/api/v1/tasks?projectId=PROJECT_ID" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Update Task Project**
+```bash
+curl -X PUT http://localhost:3000/api/v1/tasks/{taskId} \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "NEW_PROJECT_ID"
+  }'
+```
+
+#### Role-Based Access Control
+
+- **OWNER**: Full control over team (invite, remove members, create projects, manage all team resources)
+- **ADMIN**: Can invite members, create projects, manage team projects (cannot remove OWNER)
+- **MEMBER**: Can view team resources, participate in projects, manage own tasks
+
+#### Authorization Rules
+
+1. **Team Access**: Only team members can view team details and projects
+2. **Admin Actions**: Only OWNER/ADMIN can invite users, remove members, and create projects
+3. **Project Tasks**: Users can only assign tasks to projects if they're members of the project's team
+4. **Task Management**: Users can only manage their own tasks, but project assignment requires team membership
+
+#### Email Notifications
+
+Team invitations automatically send email notifications with:
+- **Template**: Professional HTML email with team details
+- **Security**: Secure token-based invitations with 7-day expiration
+- **Context**: Inviter information, team description, role assignment
+- **Instructions**: Clear steps for accepting invitations
+- **Fallback**: Token displayed in development mode for testing
+
+**Email Configuration Required:**
+```bash
+EMAIL_HOST=smtp.your-provider.com
+EMAIL_PORT=587
+EMAIL_USER=your-email@domain.com
+EMAIL_PASSWORD=your-app-password
+EMAIL_FROM=noreply@your-domain.com
+
+# For direct invitation links
+BASE_URL=https://api.your-domain.com
+FRONTEND_URL=https://app.your-domain.com
+```
+
+**Features:**
+- ✅ **One-click join button** - Users can accept invitations directly from the email
+- ✅ **Professional email design** - Modern, responsive template with team branding
+- ✅ **Multiple acceptance methods** - Direct link, API call, or manual token entry
+- ✅ **Secure tokens** - 64-character hex tokens with 7-day expiration
+- ✅ **Rich context** - Team details, inviter info, role assignment
+- ✅ **Smart redirection** - Automatic redirect to team dashboard after acceptance
+
 ## Project Structure
 
 ```

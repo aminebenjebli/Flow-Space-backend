@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from '../../core/services/prisma.service';
 import { TokenBlacklistService } from '../../core/services/token-blacklist.service';
 import { AuthGuard } from '../../core/common/guards/auth.guard';
+import { TeamModule } from '../team/team.module';
 import { TaskController } from './task.controller';
 import { TaskService } from './task.service';
 
@@ -17,7 +18,8 @@ import { TaskService } from './task.service';
                 secret: configService.get<string>('JWT_SECRET', 'secret'),
                 signOptions: { expiresIn: '1d' }
             })
-        })
+        }),
+        TeamModule // Import TeamModule to access TeamAccessService
     ],
     controllers: [TaskController],
     providers: [TaskService, PrismaService, TokenBlacklistService, AuthGuard],
