@@ -7,6 +7,9 @@ import { spawn } from 'child_process';
 export class WhisperService {
     private readonly logger = new Logger(WhisperService.name);
     private readonly baseDir = path.join(process.cwd(), 'uploads', 'whisper');
+    // Simple in-memory session store for assembling chunked transcriptions
+    // sessionId -> { chunks: Map<chunkIndex, text>, finalized?: boolean, lastUpdated: number }
+    private sessions: Map<string, { chunks: Map<number, string>; finalized?: boolean; lastUpdated: number }> = new Map();
 
     constructor() {
         this.ensureBaseDir();
@@ -308,4 +311,38 @@ export class WhisperService {
         });
     }
     // removed queue/session helper methods to keep service minimal for single-file transcription
+    // --- Session helpers for chunked/near-real-time transcription ---
+    addSessionChunk(sessionId: string, chunkIndex: number, text: string) {
+        if (!sessionId) return;
+        const now = Date.now();
+        const session = this.sessions.get(sessionId) || { chunks: new Map<number, string>(), finalized: false, lastUpdated: now };
+        session.chunks.set(Number(chunkIndex), text ?? '');
+        session.lastUpdated = now;
+        this.sessions.set(sessionId, session);
+        return this.getSessionText(sessionId);
+    }
+
+    getSessionText(sessionId: string): string {
+        const session = this.sessions.get(sessionId);
+        if (!session) return '';
+        const parts = Array.from(session.chunks.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([_, t]) => t || '');
+        return parts.join('\n').trim();
+    }
+
+    finalizeSession(sessionId: string) {
+        const session = this.sessions.get(sessionId);
+        if (!session) return '';
+        session.finalized = true;
+        session.lastUpdated = Date.now();
+        this.sessions.set(sessionId, session);
+        return this.getSessionText(sessionId);
+    }
+
+    getSessionInfo(sessionId: string) {
+        const session = this.sessions.get(sessionId);
+        if (!session) return { chunksCount: 0, finalized: false, lastUpdated: null };
+        return { chunksCount: session.chunks.size, finalized: !!session.finalized, lastUpdated: session.lastUpdated };
+    }
 }

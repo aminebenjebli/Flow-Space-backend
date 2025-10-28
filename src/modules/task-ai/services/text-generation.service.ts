@@ -7,7 +7,7 @@ export class TextGenerationService {
 
   private readonly client = new OpenAI({
     baseURL: 'https://llm.onerouter.pro/v1',
-    apiKey: process.env.ONEROUTER_API_KEY || 'sk-sxg5WwGvgpXsXXMeBB6TbI2k4x4k3Uftd4KeDusj2UcnNvz0',
+    apiKey: process.env.ONEROUTER_API_KEY || '',
   });
 
   async generateTask(prompt: string) {

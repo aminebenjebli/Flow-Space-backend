@@ -8,7 +8,7 @@ export class OpenrouterService {
   private readonly logger = new Logger(OpenrouterService.name);
   private readonly url = 'https://llm.onerouter.pro/v1/chat/completions';
 
-  private readonly HARDCODED_OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'sk-sxg5WwGvgpXsXXMeBB6TbI2k4x4k3Uftd4KeDusj2UcnNvz0'; // ta clé ici
+  private readonly HARDCODED_OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || ''; // ta clé ici
 
   private getApiKey(): string {
     if (!this.HARDCODED_OPENROUTER_API_KEY) {
