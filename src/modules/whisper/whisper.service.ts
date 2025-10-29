@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { spawn } from 'child_process';
 
 @Injectable()
@@ -131,19 +132,21 @@ export class WhisperService {
 
     // Local transcription helpers: write buffer to temp file and call python -m whisper
     private async transcribeBufferLocal(buffer: Buffer, mimeType?: string, language?: string): Promise<string> {
+        // Create a unique temporary directory in the OS temp folder for this transcription
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'whisper-'));
         const tmpName = `local-${Date.now()}-${Math.round(Math.random() * 1e6)}.webm`;
-        const tmpDir = path.join(this.baseDir, 'local_tmp');
-        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
         const tmpPath = path.join(tmpDir, tmpName);
         fs.writeFileSync(tmpPath, buffer);
         try {
             const text = await this.transcribeLocalFile(tmpPath, language);
-            // cleanup tmp files (keep original chunks elsewhere)
-            try { fs.unlinkSync(tmpPath); } catch {}
             return text;
-        } catch (err) {
-            // don't remove tmp to help debugging
-            throw err;
+        } finally {
+            // Ensure we remove the temporary directory and all created files to avoid persisting chunks
+            try {
+                fs.rmSync(tmpDir, { recursive: true, force: true });
+            } catch (e) {
+                this.logger.warn(`Failed to remove temp dir ${tmpDir}: ${e?.message || e}`);
+            }
         }
     }
 
