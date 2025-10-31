@@ -1,13 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TextGenerationService } from './services/text-generation.service';
 import { TaskAiController } from './task-ai.controller';
-import { OpenrouterService } from './services/openrouter.service';
-
+import { PrismaService } from '../../core/services/prisma.service';
 
 @Module({
   imports: [],
   controllers: [TaskAiController],
-  providers: [TextGenerationService, OpenrouterService],
-  exports: [TextGenerationService, OpenrouterService],
+  providers: [TextGenerationService, PrismaService],
+  exports: [TextGenerationService],
 })
 export class TaskAiModule {}

@@ -65,68 +65,12 @@ export class WhisperService {
     // No persistent saveChunk: audio is handled in-memory for immediate transcription only
 
     async transcribeBuffer(buffer: Buffer, mimeType?: string, language?: string): Promise<string> {
-        const key = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || process.env.OPENAI_API;
-        // If no OpenAI key, attempt local transcription fallback
-        if (!key) {
-            this.logger.warn('OPENAI API key not set: attempting local transcription fallback');
-            try {
-                return await this.transcribeBufferLocal(buffer, mimeType);
-            } catch (err) {
-                this.logger.error('local transcription failed', err as any);
-                return `transcription error (local fallback failed)`;
-            }
-        }
-
-        // Use fetch + FormData which is available in Node 18+
+        // Always use local transcription (python -m whisper + ffmpeg).
         try {
-            // Build a FormData object and append the audio file
-            const form = new (global as any).FormData();
-            // Create a Blob from the buffer
-            const blob = new (global as any).Blob([buffer], { type: mimeType || 'audio/webm' });
-            // The OpenAI API expects the file field name to be "file" and a model param
-            form.append('file', blob, 'audio.webm');
-            form.append('model', 'whisper-1');
-            if (language) form.append('language', language);
-
-            const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${key}`,
-                    // Note: do NOT set Content-Type header when using FormData; fetch will set it
-                },
-                body: form as any,
-            });
-
-            if (!res.ok) {
-                const txt = await res.text();
-                this.logger.error(`OpenAI transcription failed: ${res.status} ${txt}`);
-                // If quota issue, try local fallback first, otherwise surface error
-                    if (res.status === 429) {
-                    this.logger.warn('OpenAI quota exceeded — attempting local transcription fallback');
-                    try {
-                        return await this.transcribeBufferLocal(buffer, mimeType, language);
-                    } catch (localErr) {
-                        this.logger.error('local fallback also failed', localErr as any);
-                        const err: any = new Error('OpenAI quota exceeded');
-                        err.name = 'QuotaExceeded';
-                        throw err;
-                    }
-                }
-                return `transcription error: ${res.status}`;
-            }
-
-            const json = await res.json();
-            if (json?.text) return json.text;
-            return JSON.stringify(json);
+            return await this.transcribeBufferLocal(buffer, mimeType, language);
         } catch (err) {
-            this.logger.error('transcribeBuffer error', err as any);
-            // As a last resort, attempt local transcription
-            try {
-                return await this.transcribeBufferLocal(buffer, mimeType, language);
-            } catch (localErr) {
-                this.logger.error('local transcription also failed', localErr as any);
-                return `transcription error`;
-            }
+            this.logger.error('local transcription failed', err as any);
+            return `transcription error (local failed)`;
         }
     }
 

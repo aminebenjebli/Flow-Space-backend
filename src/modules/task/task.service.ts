@@ -37,7 +37,7 @@ export class TaskService {
             userId: userId
         };
 
-        return this.prismaService.task.create({
+        const task = await this.prismaService.task.create({
             data: taskData,
             include: {
                 user: {
@@ -49,6 +49,7 @@ export class TaskService {
                 }
             }
         });
+        return task;
     }
 
     async findAll(
@@ -244,7 +245,9 @@ export class TaskService {
                 : null;
         }
 
-        return this.prismaService.task.update({
+        const before = await this.findOne(userId, taskId);
+
+        const updated = await this.prismaService.task.update({
             where: { id: taskId },
             data: updateData,
             include: {
@@ -257,6 +260,7 @@ export class TaskService {
                 }
             }
         });
+           return updated;
     }
 
     async remove(userId: string, taskId: string): Promise<Task> {

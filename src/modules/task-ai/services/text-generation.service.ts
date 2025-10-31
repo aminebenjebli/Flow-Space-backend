@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, HttpException, UnauthorizedException, BadGatewayException, ServiceUnavailableException, HttpStatus } from '@nestjs/common';
 import OpenAI from 'openai';
 
 @Injectable()
@@ -7,7 +7,7 @@ export class TextGenerationService {
 
   private readonly client = new OpenAI({
     baseURL: 'https://llm.onerouter.pro/v1',
-    apiKey: process.env.ONEROUTER_API_KEY || '',
+    apiKey: process.env.ONEROUTER_API_KEY || 'sk-VUw8FKc1rBuVAuzl7g5oXT7Fo2hpL6WpdW38MgD5pSkQRVoc',
   });
 
   // Normalize priority values returned by models to one of: 'low' | 'normal' | 'high'
@@ -61,4 +61,58 @@ export class TextGenerationService {
       };
     }
   }
+
+ 
+  async proposeTasksFromUserTasks(tasks: any[], options?: { maxSuggestions?: number }) {
+    const max = options?.maxSuggestions ?? 3;
+    try {
+      const payloadTasks = JSON.stringify(tasks, null, 2);
+      const prompt = `You are a helpful task assistant. Given the following list of user tasks (JSON array):\n\n${payloadTasks}\n\nAnalyze the user's tasks and propose up to ${max} new tasks that would be useful for this user. Consider:\n- recurring routines the user performs frequently,\n- logical follow-ups or dependent tasks that should occur after existing tasks,\n- cleanup/maintenance tasks the user might have missed,\n- sensible priorities and brief reasons why each suggestion is useful.\n\nReturn ONLY a JSON array (no explanation) of objects with these fields: {"title": "<short title>", "description": "<detailed description>", "priority": "<low|normal|high>", "dependsOn": [<ids or titles of existing tasks, optional>], "reason": "<one-sentence justification>"}.\n\nNow respond.`;
+
+      const response = await this.client.chat.completions.create({
+        model: 'gpt-5-chat',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+      });
+
+      const content = response.choices[0].message?.content?.trim();
+      const clean = content?.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean || '[]');
+
+      // Normalize priority on each suggested item
+      if (Array.isArray(parsed)) {
+        return parsed.map((it: any) => ({
+          title: it.title ?? it.titre ?? 'Untitled',
+          description: it.description ?? it.desc ?? '',
+          priority: this.normalizePriority(it.priority ?? it.priorite),
+          dependsOn: it.dependsOn ?? it.depends ?? [],
+          reason: it.reason ?? '',
+          raw: it,
+        }));
+      }
+      return [];
+    } catch (error: any) {
+      const respData = error?.response?.data || error?.response || error?.message || error;
+      const status = error?.response?.status;
+
+      // Log full context for debugging (request id sometimes included in provider response)
+      this.logger.error('Erreur proposition tâches OpenRouter: status=' + (status || 'unknown') + ' body=' + JSON.stringify(respData));
+
+      // Map provider HTTP status to Nest exceptions so the controller returns an appropriate status code
+      if (status === 401) {
+        throw new UnauthorizedException('LLM provider authentication failed');
+      }
+      if (status === 429) {
+        throw new HttpException('LLM provider rate limit exceeded', HttpStatus.TOO_MANY_REQUESTS);
+      }
+      if (status && status >= 500 && status < 600) {
+        throw new BadGatewayException('LLM provider error');
+      }
+
+      // Fallback: service unavailable for network/unknown errors
+      throw new ServiceUnavailableException('LLM provider unavailable');
+    }
+  }
+
+  
 }
