@@ -21,6 +21,9 @@ model User {
   // Relations
   tasks             Task[]
   blacklistedTokens BlacklistedToken[]
+  teamMembers       TeamMember[]
+  ownedProjects     Project[] @relation("ProjectOwner")
+}
 
 
 model BlacklistedToken {
@@ -75,14 +78,6 @@ enum TaskPriority {
   URGENT
 }
 
-
-
-  // Relations
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, keyword])
-  @@index([userId])
-=======
 enum TeamRole {
   OWNER
   ADMIN

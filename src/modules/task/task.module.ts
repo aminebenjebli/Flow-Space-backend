@@ -19,10 +19,8 @@ import { TaskAiModule } from '../task-ai/task-ai.module';
                 secret: configService.get<string>('JWT_SECRET', 'secret'),
                 signOptions: { expiresIn: '1d' }
             })
-        })
-        ,
-        TaskAiModule
         }),
+        TaskAiModule,
         TeamModule // Import TeamModule to access TeamAccessService
     ],
     controllers: [TaskController],
