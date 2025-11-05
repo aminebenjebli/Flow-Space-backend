@@ -11,8 +11,12 @@ import { AuthModule } from './modules/auth/auth.module';
 import { FileUploadModule } from './modules/file-upload/file-upload.module';
 import { UserModule } from './modules/user/user.module';
 import { TaskModule } from './modules/task/task.module';
+import { mailerConfig } from './config/mailer.config';
+import { WhisperModule } from './modules/whisper/whisper.module';
+import { TaskAiModule } from './modules/task-ai/task-ai.module';
 import { TeamModule } from './modules/team/team.module';
 import { ProjectModule } from './modules/project/project.module';
+
 
 @Module({
     imports: [
@@ -62,6 +66,8 @@ import { ProjectModule } from './modules/project/project.module';
         AuthModule,
         UserModule,
         TaskModule,
+        TaskAiModule,
+        WhisperModule,
         TeamModule,
         ProjectModule
     ],

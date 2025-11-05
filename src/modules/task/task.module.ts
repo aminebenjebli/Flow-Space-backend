@@ -7,6 +7,7 @@ import { AuthGuard } from '../../core/common/guards/auth.guard';
 import { TeamModule } from '../team/team.module';
 import { TaskController } from './task.controller';
 import { TaskService } from './task.service';
+import { TaskAiModule } from '../task-ai/task-ai.module';
 
 @Module({
     imports: [
@@ -18,6 +19,9 @@ import { TaskService } from './task.service';
                 secret: configService.get<string>('JWT_SECRET', 'secret'),
                 signOptions: { expiresIn: '1d' }
             })
+        })
+        ,
+        TaskAiModule
         }),
         TeamModule // Import TeamModule to access TeamAccessService
     ],

@@ -21,9 +21,7 @@ model User {
   // Relations
   tasks             Task[]
   blacklistedTokens BlacklistedToken[]
-  teamMemberships   TeamMember[] // <-- back-relation ajouté
-  ownedProjects     Project[]          @relation("ProjectOwner")
-}
+
 
 model BlacklistedToken {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -77,6 +75,14 @@ enum TaskPriority {
   URGENT
 }
 
+
+
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, keyword])
+  @@index([userId])
+=======
 enum TeamRole {
   OWNER
   ADMIN
@@ -155,4 +161,5 @@ model Project {
   @@index([teamId])
   @@index([ownerId])
   @@index([visibility])
+
 }
