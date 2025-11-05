@@ -16,9 +16,28 @@ export class TextGenerationService {
     private readonly client = new OpenAI({
         baseURL: 'https://llm.onerouter.pro/v1',
         apiKey:
-            process.env.ONEROUTER_API_KEY ||
-            'sk-VUw8FKc1rBuVAuzl7g5oXT7Fo2hpL6WpdW38MgD5pSkQRVoc'
+            process.env.OPENROUTER_API_KEY ||
+            process.env.OPENAI_API_KEY ||
+            (() => {
+                this.logger.error(
+                    'No API key found in environment variables OPENROUTER_API_KEY or OPENAI_API_KEY'
+                );
+                throw new Error('Missing AI API key configuration');
+            })()
     });
+
+    constructor() {
+        // Log API key status for debugging (without exposing the actual key)
+        const hasOpenrouter = !!process.env.OPENROUTER_API_KEY;
+        const hasOpenAI = !!process.env.OPENAI_API_KEY;
+        this.logger.debug(
+            `API Key Status - OPENROUTER_API_KEY: ${hasOpenrouter}, OPENAI_API_KEY: ${hasOpenAI}`
+        );
+
+        if (!hasOpenrouter && !hasOpenAI) {
+            this.logger.error('No API keys found in environment variables');
+        }
+    }
 
     // Normalize priority values returned by models to one of: 'low' | 'medium' | 'high' | 'urgent'
     private normalizePriority(raw?: string) {
