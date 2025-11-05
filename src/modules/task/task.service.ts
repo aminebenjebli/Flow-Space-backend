@@ -6,6 +6,7 @@ import {
 const chrono: any = require('chrono-node');
 import { Task, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/services/prisma.service';
+import { TeamAccessService } from '../team/team-access.service';
 import {
     CreateTaskDto,
     UpdateTaskDto,
@@ -23,9 +24,18 @@ export interface PaginatedTasks {
 
 @Injectable()
 export class TaskService {
-    constructor(private readonly prismaService: PrismaService) {}
+    constructor(
+        private readonly prismaService: PrismaService,
+        private readonly teamAccessService: TeamAccessService
+    ) {}
 
     async create(userId: string, createTaskDto: CreateTaskDto): Promise<Task> {
+        // If projectId is provided, validate user membership in the project's team
+        if (createTaskDto.projectId) {
+            const teamId = await this.teamAccessService.getTeamIdFromProject(createTaskDto.projectId);
+            await this.teamAccessService.assertMember(userId, teamId);
+        }
+
         const taskData = {
             title: createTaskDto.title,
             description: createTaskDto.description,
@@ -34,7 +44,8 @@ export class TaskService {
             dueDate: createTaskDto.dueDate
                 ? new Date(createTaskDto.dueDate)
                 : null,
-            userId: userId
+            userId: userId,
+            projectId: createTaskDto.projectId || null
         };
 
         const task = await this.prismaService.task.create({
@@ -45,6 +56,19 @@ export class TaskService {
                         id: true,
                         name: true,
                         email: true
+                    }
+                },
+                project: {
+                    select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        team: {
+                            select: {
+                                id: true,
+                                name: true
+                            }
+                        }
                     }
                 }
             }
@@ -62,11 +86,18 @@ export class TaskService {
             search,
             dueFrom,
             dueUntil,
+            projectId,
             page = 1,
             limit = 10,
             sortBy = 'createdAt',
             sortOrder = 'desc'
         } = queryDto;
+
+        // If projectId is provided, validate user membership in the project's team
+        if (projectId) {
+            const teamId = await this.teamAccessService.getTeamIdFromProject(projectId);
+            await this.teamAccessService.assertMember(userId, teamId);
+        }
 
         // Debug logging
         console.log('=== TASK SEARCH DEBUG ===');
@@ -90,7 +121,9 @@ export class TaskService {
 
         // Build where clause
         const where: Prisma.TaskWhereInput = {
-            userId,
+            // If projectId is specified, show all tasks in that project (for team members)
+            // Otherwise, show only user's personal tasks
+            ...(projectId ? { projectId } : { userId }),
             ...(status && { status }),
             ...(priority && { priority }),
             ...(dueFrom && {
@@ -179,6 +212,19 @@ export class TaskService {
                             name: true,
                             email: true
                         }
+                    },
+                    project: {
+                        select: {
+                            id: true,
+                            name: true,
+                            description: true,
+                            team: {
+                                select: {
+                                    id: true,
+                                    name: true
+                                }
+                            }
+                        }
                     }
                 }
             }),
@@ -210,6 +256,19 @@ export class TaskService {
                         name: true,
                         email: true
                     }
+                },
+                project: {
+                    select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        team: {
+                            select: {
+                                id: true,
+                                name: true
+                            }
+                        }
+                    }
                 }
             }
         });
@@ -227,7 +286,15 @@ export class TaskService {
         updateTaskDto: UpdateTaskDto
     ): Promise<Task> {
         // Check if task exists and belongs to user
-        await this.findOne(userId, taskId);
+        const existingTask = await this.findOne(userId, taskId);
+
+        // If projectId is being updated, validate user membership in the new project's team
+        if (updateTaskDto.projectId !== undefined && updateTaskDto.projectId !== existingTask.projectId) {
+            if (updateTaskDto.projectId) {
+                const teamId = await this.teamAccessService.getTeamIdFromProject(updateTaskDto.projectId);
+                await this.teamAccessService.assertMember(userId, teamId);
+            }
+        }
 
         const updateData: any = {};
 
@@ -244,6 +311,9 @@ export class TaskService {
                 ? new Date(updateTaskDto.dueDate)
                 : null;
         }
+        if (updateTaskDto.projectId !== undefined) {
+            updateData.projectId = updateTaskDto.projectId || null;
+        }
 
         const before = await this.findOne(userId, taskId);
 
@@ -256,6 +326,19 @@ export class TaskService {
                         id: true,
                         name: true,
                         email: true
+                    }
+                },
+                project: {
+                    select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        team: {
+                            select: {
+                                id: true,
+                                name: true
+                            }
+                        }
                     }
                 }
             }
@@ -275,6 +358,19 @@ export class TaskService {
                         id: true,
                         name: true,
                         email: true
+                    }
+                },
+                project: {
+                    select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        team: {
+                            select: {
+                                id: true,
+                                name: true
+                            }
+                        }
                     }
                 }
             }
