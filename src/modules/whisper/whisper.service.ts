@@ -26,40 +26,67 @@ export class WhisperService {
 
 
     private async checkLocalDependencies(): Promise<void> {
-        const pythonCmd = process.env.WHISPER_PYTHON_CMD || 'python';
-        // check python -m whisper --help
-        await new Promise<void>((resolve, reject) => {
-            try {
-                const proc = spawn(pythonCmd, ['-m', 'whisper', '--help'], { env: { ...(process.env || {}), PATH: `${process.env.PATH || ''}:/opt/homebrew/bin` } });
-                proc.on('error', (err) => reject(err));
-                proc.on('close', (code) => {
-                    if (code === 0) resolve();
-                    else reject(new Error('python -m whisper not available'));
-                });
-            } catch (err) {
-                reject(err);
-            }
-        });
+        // Try several python commands (allow override via WHISPER_PYTHON_CMD)
+        const pythonCandidates = process.env.WHISPER_PYTHON_CMD
+            ? [process.env.WHISPER_PYTHON_CMD]
+            : process.platform === 'win32'
+            ? ['python', 'py']
+            : ['python3', 'python'];
 
-        // check ffmpeg presence
-        const ff = process.env.FFMPEG_BINARY || '/opt/homebrew/bin/ffmpeg';
-        if (!fs.existsSync(ff)) {
-            // ffmpeg not found at that path; try which
+        const tryPython = (cmd: string) =>
+            new Promise<void>((resolve, reject) => {
+                try {
+                    const env = { ...(process.env || {}) } as NodeJS.ProcessEnv;
+                    // add common Homebrew path on macOS to improve discovery for devs using Homebrew
+                    if (process.platform === 'darwin') {
+                        env.PATH = `${env.PATH || ''}:/opt/homebrew/bin`;
+                    }
+                    const proc = spawn(cmd, ['-m', 'whisper', '--help'], { env });
+                    proc.on('error', (err) => reject(err));
+                    proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error('not available'))));
+                } catch (err) {
+                    reject(err);
+                }
+            });
+
+        let pythonOk = false;
+        for (const c of pythonCandidates) {
             try {
-                const which = spawn('which', ['ffmpeg']);
-                let out = '';
-                which.stdout.on('data', (d) => (out += d.toString()));
-                await new Promise<void>((resolve, reject) => {
-                    which.on('error', (e) => reject(e));
-                    which.on('close', (code) => {
-                        if (code === 0 && out.trim()) resolve();
-                        else reject(new Error('ffmpeg not found'));
-                    });
-                });
+                // eslint-disable-next-line no-await-in-loop
+                await tryPython(c);
+                pythonOk = true;
+                break;
             } catch (e) {
-                throw new Error('ffmpeg not found in PATH or FFMPEG_BINARY');
+                // try next candidate
             }
         }
+        if (!pythonOk) {
+            throw new Error('python -m whisper not available; set WHISPER_PYTHON_CMD to your python executable');
+        }
+
+        // Check ffmpeg presence. Prefer explicit FFMPEG_BINARY, else rely on PATH using platform-appropriate helper.
+        const ffEnv = process.env.FFMPEG_BINARY;
+        if (ffEnv && fs.existsSync(ffEnv)) {
+            return;
+        }
+
+        const whichCmd = process.platform === 'win32' ? 'where' : 'which';
+        await new Promise<void>((resolve, reject) => {
+            try {
+                const proc = spawn(whichCmd, ['ffmpeg']);
+                let out = '';
+                proc.stdout.on('data', (d) => (out += d.toString()));
+                proc.on('error', (e) => reject(e));
+                proc.on('close', (code) => {
+                    if (code === 0 && out.trim()) resolve();
+                    else reject(new Error('ffmpeg not found'));
+                });
+            } catch (e) {
+                reject(e);
+            }
+        }).catch(() => {
+            throw new Error('ffmpeg not found in PATH or via FFMPEG_BINARY; please install ffmpeg and ensure it is on PATH');
+        });
     }
 
     // No persistent saveChunk: audio is handled in-memory for immediate transcription only
@@ -104,9 +131,10 @@ export class WhisperService {
         const filename = path.parse(filePath).name;
 
         return new Promise<string>((resolve, reject) => {
+            // Determine python command and ffmpeg path (allow env overrides)
             const pythonCmd = process.env.WHISPER_PYTHON_CMD || 'python';
-            // First, transcode to WAV to make sure the file is readable by whisper
-            const ffmpegPath = process.env.FFMPEG_BINARY || '/opt/homebrew/bin/ffmpeg';
+            // Use FFMPEG_BINARY if set, otherwise rely on 'ffmpeg' being available in PATH
+            const ffmpegPath = process.env.FFMPEG_BINARY || 'ffmpeg';
             const wavPath = path.join(outDir, `${filename}.wav`);
 
             const ffmpegArgs = ['-y', '-i', filePath, '-ar', '16000', '-ac', '1', wavPath];
@@ -115,7 +143,20 @@ export class WhisperService {
             const spawnFfmpeg = (args: string[]) => {
                 return new Promise<{ code: number | null; stderr: string }>((res, rej) => {
                     try {
-                        const ff = spawn(ffmpegPath, args, { env: { ...(process.env || {}), PATH: `${process.env.PATH || ''}:/opt/homebrew/bin` } });
+                        // Build environment for ffmpeg spawn. Add common locations for macOS and Windows if missing.
+                        const env = { ...(process.env || {}) } as NodeJS.ProcessEnv;
+                        if (!env.PATH) env.PATH = '';
+                        if (process.platform === 'darwin' && !env.PATH.includes('/opt/homebrew/bin')) {
+                            env.PATH = `${env.PATH}:/opt/homebrew/bin`;
+                        }
+                        if (process.platform === 'win32') {
+                            // common ffmpeg installation locations on Windows
+                            const winCandidates = ['C:\\Program Files\\ffmpeg\\bin', 'C:\\ffmpeg\\bin'];
+                            for (const p of winCandidates) {
+                                if (!env.PATH.includes(p)) env.PATH = `${env.PATH};${p}`;
+                            }
+                        }
+                        const ff = spawn(ffmpegPath, args, { env });
                         let ffErr = '';
                         ff.stderr.on('data', (d) => (ffErr += d.toString()));
                         ff.on('error', (e) => {
@@ -200,14 +241,19 @@ export class WhisperService {
                 this.logger.log(`Running local whisper: ${pythonCmd} ${args.join(' ')}`);
                 // Ensure ffmpeg from Homebrew is available to the spawned process by fixing PATH
                 const env = { ...(process.env || {}) } as NodeJS.ProcessEnv;
-                const brewPath = '/opt/homebrew/bin';
-                if (env.PATH && !env.PATH.includes(brewPath)) {
-                    env.PATH = `${env.PATH}:${brewPath}`;
-                } else if (!env.PATH) {
-                    env.PATH = brewPath;
+                // Ensure ffmpeg is discoverable by whisper process. If an explicit binary path was provided, expose it; otherwise
+                // rely on PATH. Add macOS Homebrew path or common Windows locations if missing.
+                if (!env.PATH) env.PATH = '';
+                if (process.platform === 'darwin' && !env.PATH.includes('/opt/homebrew/bin')) {
+                    env.PATH = `${env.PATH}:/opt/homebrew/bin`;
                 }
-                // Ensure ffmpeg path is exposed to whisper (can be overridden via env)
-                env.FFMPEG_BINARY = process.env.FFMPEG_BINARY || '/opt/homebrew/bin/ffmpeg';
+                if (process.platform === 'win32') {
+                    const winCandidates = ['C:\\Program Files\\ffmpeg\\bin', 'C:\\ffmpeg\\bin'];
+                    for (const p of winCandidates) {
+                        if (!env.PATH.includes(p)) env.PATH = `${env.PATH};${p}`;
+                    }
+                }
+                env.FFMPEG_BINARY = process.env.FFMPEG_BINARY || ffmpegPath;
 
                 const proc = spawn(pythonCmd, args, { stdio: ['ignore', 'pipe', 'pipe'], env });
                 let stdout = '';
