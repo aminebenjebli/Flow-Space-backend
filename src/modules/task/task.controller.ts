@@ -21,7 +21,7 @@ import {
     ApiParam,
     ApiBody
 } from '@nestjs/swagger';
-import { Task } from '@prisma/client';
+import {  Task} from '@prisma/client';
 import { TaskService, PaginatedTasks } from './task.service';
 import { TextGenerationService } from '../task-ai/services/text-generation.service';
 import { ParseTaskDto } from '../task-ai/dto/parse-task.dto';

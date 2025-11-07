@@ -4,7 +4,7 @@ import {
     ForbiddenException
 } from '@nestjs/common';
 const chrono: any = require('chrono-node');
-import { Task, Prisma } from '@prisma/client';
+import { Prisma, Task } from '@prisma/client';
 import { PrismaService } from '../../core/services/prisma.service';
 import { TeamAccessService } from '../team/team-access.service';
 import {
@@ -13,6 +13,7 @@ import {
     QueryTaskDto,
     TaskStatus
 } from './dto/task.dto';
+import { TasksGateway } from 'src/websocket/tasks.gateway';
 
 export interface PaginatedTasks {
     tasks: Task[];
@@ -25,6 +26,7 @@ export interface PaginatedTasks {
 @Injectable()
 export class TaskService {
     constructor(
+        private readonly tasksGateway: TasksGateway,
         private readonly prismaService: PrismaService,
         private readonly teamAccessService: TeamAccessService
     ) {}
@@ -79,7 +81,7 @@ export class TaskService {
     async findAll(
         userId: string,
         queryDto: QueryTaskDto
-    ): Promise<PaginatedTasks> {
+     ): Promise<PaginatedTasks> {
         const {
             status,
             priority,
@@ -384,7 +386,7 @@ export class TaskService {
         done: number;
         cancelled: number;
         overdue: number;
-    }> {
+     }> {
         const now = new Date();
 
         const [total, todo, inProgress, done, cancelled, overdue] =
@@ -427,7 +429,7 @@ export class TaskService {
         userId: string,
         taskIds: string[],
         status: TaskStatus
-    ): Promise<{ count: number }> {
+     ): Promise<{ count: number }> {
         // Validate input parameters
         if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
             throw new ForbiddenException('taskIds must be a non-empty array');
@@ -539,4 +541,20 @@ export class TaskService {
                 parsedText: matchedText
             };
   }
+
+   async updateTask(taskData: any) {
+    // Utiliser la fonction de mise à jour de la tâche
+    const updatedTask = await this.update(taskData.userId, taskData.taskId, taskData.updateTaskDto);
+
+    // Une fois la tâche mise à jour, émettre l'événement WebSocket
+    try {
+        this.tasksGateway.handleTaskUpdate(updatedTask);
+    } catch (err) {
+        // Non-fatal: log and continue
+        console.warn('[Warn] Failed to emit websocket event for updated task:', err && err.message ? err.message : err);
+    }
+
+    return updatedTask;
+}
+
 }
