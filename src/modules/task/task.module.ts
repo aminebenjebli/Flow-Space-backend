@@ -8,6 +8,7 @@ import { TeamModule } from '../team/team.module';
 import { TaskController } from './task.controller';
 import { TaskService } from './task.service';
 import { TaskAiModule } from '../task-ai/task-ai.module';
+import { TasksGateway } from 'src/websocket/tasks.gateway';
 
 @Module({
     imports: [
@@ -24,7 +25,7 @@ import { TaskAiModule } from '../task-ai/task-ai.module';
         TeamModule // Import TeamModule to access TeamAccessService
     ],
     controllers: [TaskController],
-    providers: [TaskService, PrismaService, TokenBlacklistService, AuthGuard],
+    providers: [TaskService, PrismaService, TokenBlacklistService, AuthGuard, TasksGateway],
     exports: [TaskService]
 })
 export class TaskModule {}

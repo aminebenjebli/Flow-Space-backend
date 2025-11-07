@@ -6,6 +6,14 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import setupSwagger from './core/config/swagger.config';
 
+// Global error handlers to surface uncaught errors during bootstrap
+process.on('unhandledRejection', (reason) => {
+    console.error('[UnhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('[UncaughtException]', err && err.stack ? err.stack : err);
+});
+
 async function bootstrap() {
     const app = await NestFactory.create(AppModule, {
         bufferLogs: true
