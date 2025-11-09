@@ -286,7 +286,7 @@ export class TaskService {
         userId: string,
         taskId: string,
         updateTaskDto: UpdateTaskDto
-    ): Promise<Task> {
+     ): Promise<Task> {
         // Check if task exists and belongs to user
         const existingTask = await this.findOne(userId, taskId);
 
@@ -345,6 +345,7 @@ export class TaskService {
                 }
             }
         });
+          this.tasksGateway.handleTaskUpdate(updated);
            return updated;
     }
 
@@ -553,7 +554,7 @@ export class TaskService {
         // Non-fatal: log and continue
         console.warn('[Warn] Failed to emit websocket event for updated task:', err && err.message ? err.message : err);
     }
-
+   
     return updatedTask;
 }
 
