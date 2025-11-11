@@ -330,12 +330,12 @@ export class ProjectService {
             throw new NotFoundException('Project not found');
         }
 
-        // Check permissions: owner or team admin
+        // Check permissions: owner or team owner
         const isOwner = project.ownerId === userId;
-        const isTeamAdmin = project.team?.members?.[0]?.role === 'OWNER' || project.team?.members?.[0]?.role === 'ADMIN';
+        const isTeamOwner = project.team?.members?.[0]?.role === 'OWNER';
 
-        if (!isOwner && !isTeamAdmin) {
-            throw new ForbiddenException('Only project owner or team admin can update settings');
+        if (!isOwner && !isTeamOwner) {
+            throw new ForbiddenException('Only project owner or team owner can update settings');
         }
 
         // If changing team attachment, validate
@@ -400,12 +400,12 @@ export class ProjectService {
             throw new ConflictException('Cannot invite members to personal projects. Attach the project to a team first.');
         }
 
-        // Check permissions: owner or team admin
+        // Check permissions: owner or team owner
         const isOwner = project.ownerId === userId;
-        const isTeamAdmin = project.team?.members?.[0]?.role === 'OWNER' || project.team?.members?.[0]?.role === 'ADMIN';
+        const isTeamOwner = project.team?.members?.[0]?.role === 'OWNER';
 
-        if (!isOwner && !isTeamAdmin) {
-            throw new ForbiddenException('Only project owner or team admin can invite members');
+        if (!isOwner && !isTeamOwner) {
+            throw new ForbiddenException('Only project owner or team owner can invite members');
         }
 
         // Delegate to team service for invitation
@@ -456,12 +456,12 @@ export class ProjectService {
             throw new NotFoundException('Project not found');
         }
 
-        // Check permissions: owner or team admin
+        // Check permissions: owner or team owner
         const isOwner = project.ownerId === userId;
-        const isTeamAdmin = project.team?.members?.[0]?.role === 'OWNER' || project.team?.members?.[0]?.role === 'ADMIN';
+        const isTeamOwner = project.team?.members?.[0]?.role === 'OWNER';
 
-        if (!isOwner && !isTeamAdmin) {
-            throw new ForbiddenException('Only project owner or team admin can delete project');
+        if (!isOwner && !isTeamOwner) {
+            throw new ForbiddenException('Only project owner or team owner can delete project');
         }
 
         // Delete the project (tasks will be set to null due to onDelete: SetNull)

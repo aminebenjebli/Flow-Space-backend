@@ -597,14 +597,39 @@ export class TeamService {
         }
 
         const memberIds = team.members.map(member => member.userId);
+        const projectIds = team.projects.map(project => project.id);
 
-        // Get recent tasks from team members (last 30 days)
+        // If team has no projects, return empty data
+        if (projectIds.length === 0) {
+            return {
+                recentTasks: [],
+                memberStats: team.members.map(member => ({
+                    userId: member.userId,
+                    name: member.user.name,
+                    email: member.user.email,
+                    role: member.role,
+                    totalTasks: 0,
+                    completedTasks: 0,
+                    inProgressTasks: 0,
+                    completionRate: 0
+                })),
+                projectStats: [],
+                teamSummary: {
+                    totalMembers: team.members.length,
+                    totalProjects: 0,
+                    totalTasks: 0,
+                    completedTasks: 0
+                }
+            };
+        }
+
+        // Get recent tasks from team projects (last 30 days)
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
         const recentTasks = await this.prismaService.task.findMany({
             where: {
-                userId: { in: memberIds },
+                projectId: { in: projectIds },
                 OR: [
                     { createdAt: { gte: thirtyDaysAgo } },
                     { updatedAt: { gte: thirtyDaysAgo } }
@@ -629,22 +654,27 @@ export class TeamService {
             take: 20
         });
 
-        // Get member statistics
+        // Get member statistics (only for tasks in team projects)
         const memberStats = await Promise.all(
             team.members.map(async (member) => {
                 const [totalTasks, completedTasks, inProgressTasks] = await Promise.all([
                     this.prismaService.task.count({
-                        where: { userId: member.userId }
+                        where: { 
+                            userId: member.userId,
+                            projectId: { in: projectIds }
+                        }
                     }),
                     this.prismaService.task.count({
                         where: { 
                             userId: member.userId,
+                            projectId: { in: projectIds },
                             status: 'DONE'
                         }
                     }),
                     this.prismaService.task.count({
                         where: { 
                             userId: member.userId,
+                            projectId: { in: projectIds },
                             status: 'IN_PROGRESS'
                         }
                     })
