@@ -473,15 +473,23 @@ export class ProjectService {
     }
 
     /**
-     * Get all public projects across all teams
+     * Get all public projects across all teams with pagination
      */
-    async getPublicProjects(): Promise<ProjectResponseDto[]> {
+    async getPublicProjects(page: number = 1, limit: number = 5): Promise<{ data: ProjectResponseDto[], total: number }> {
         try {
-            console.log('DEBUG - getPublicProjects: Starting query for public projects');
+            console.log('DEBUG - getPublicProjects: Starting query for public projects with pagination', { page, limit });
             
-            // First check if we can access the database
-            const projectCount = await this.prismaService.project.count();
-            console.log('DEBUG - Total projects in database:', projectCount);
+            // Calculate skip value for pagination
+            const skip = (page - 1) * limit;
+            
+            // Get total count of public projects
+            const total = await this.prismaService.project.count({
+                where: {
+                    visibility: PrismaProjectVisibility.PUBLIC
+                }
+            });
+            
+            console.log('DEBUG - Total public projects:', total);
             
             const publicProjects = await this.prismaService.project.findMany({
                 where: {
@@ -510,12 +518,14 @@ export class ProjectService {
                 },
                 orderBy: {
                     createdAt: 'desc'
-                }
+                },
+                skip,
+                take: limit
             });
 
-            console.log('DEBUG - getPublicProjects: Found', publicProjects.length, 'public projects');
+            console.log('DEBUG - getPublicProjects: Found', publicProjects.length, 'public projects on page', page);
             
-            return publicProjects.map(project => ({
+            const data = publicProjects.map(project => ({
                 id: project.id,
                 ownerId: project.ownerId,
                 teamId: project.teamId,
@@ -535,6 +545,8 @@ export class ProjectService {
                 } : null,
                 taskCount: project._count.tasks
             }));
+            
+            return { data, total };
             
         } catch (error) {
             console.error('DEBUG - getPublicProjects error:', error);

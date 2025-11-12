@@ -7,6 +7,7 @@ import {
     Delete,
     Body,
     Param,
+    Query,
     UseGuards,
     Request,
     HttpCode,
@@ -18,11 +19,13 @@ import {
     ApiResponse,
     ApiBearerAuth,
     ApiParam,
-    ApiBody
+    ApiBody,
+    ApiQuery
 } from '@nestjs/swagger';
 import { AuthGuard } from '../../core/common/guards/auth.guard';
 import { ProjectService } from './project.service';
 import { CreateProjectDto, ProjectResponseDto, UpdateProjectSettingsDto } from './dto/project.dto';
+import { PaginationDto, PaginatedResponseDto, createPaginationMeta } from '../../core/common/dto/pagination.dto';
 
 @ApiTags('Projects')
 @ApiBearerAuth()
@@ -87,43 +90,44 @@ export class ProjectController {
     }
 
     @Get('public')
-    @ApiOperation({ summary: 'Get all public projects' })
+    @ApiOperation({ summary: 'Get all public projects (paginated)' })
+    @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)', example: 1 })
+    @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 5, max: 100)', example: 5 })
     @ApiResponse({
         status: 200,
-        description: 'Public projects retrieved successfully',
+        description: 'List of public projects with pagination metadata',
         schema: {
-            type: 'array',
-            items: {
-                type: 'object',
-                properties: {
-                    id: { type: 'string', example: '507f1f77bcf86cd799439011' },
-                    name: { type: 'string', example: 'Open Source Project' },
-                    description: { type: 'string', example: 'A public project description' },
-                    visibility: { type: 'string', example: 'PUBLIC' },
-                    createdAt: { type: 'string', format: 'date-time' },
-                    team: {
-                        type: 'object',
-                        properties: {
-                            id: { type: 'string' },
-                            name: { type: 'string' }
-                        }
-                    },
-                    _count: {
-                        type: 'object',
-                        properties: {
-                            tasks: { type: 'number' }
-                        }
+            type: 'object',
+            properties: {
+                data: {
+                    type: 'array',
+                    items: { type: 'object' }
+                },
+                meta: {
+                    type: 'object',
+                    properties: {
+                        page: { type: 'number', example: 1 },
+                        limit: { type: 'number', example: 5 },
+                        total: { type: 'number', example: 42 },
+                        totalPages: { type: 'number', example: 9 },
+                        hasNextPage: { type: 'boolean', example: true },
+                        hasPreviousPage: { type: 'boolean', example: false }
                     }
                 }
             }
         }
     })
-    async getPublicProjects(@Request() req: any) {
+    async getPublicProjects(@Query() paginationDto: PaginationDto) {
         try {
-            console.log('DEBUG - Controller getPublicProjects: Starting...');
-            const result = await this.projectService.getPublicProjects();
-            console.log('DEBUG - Controller getPublicProjects: Success, returning', result.length, 'projects');
-            return result;
+            console.log('DEBUG - Controller getPublicProjects: Starting with pagination', paginationDto);
+            const { page = 1, limit = 5 } = paginationDto;
+            const { data, total } = await this.projectService.getPublicProjects(page, limit);
+            console.log('DEBUG - Controller getPublicProjects: Success, returning', data.length, 'of', total, 'projects');
+            
+            return {
+                data,
+                meta: createPaginationMeta(page, limit, total)
+            };
         } catch (error) {
             console.error('DEBUG - Controller getPublicProjects error:', error);
             throw error;
