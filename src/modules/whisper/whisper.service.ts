@@ -9,8 +9,15 @@ export class WhisperService {
     private readonly logger = new Logger(WhisperService.name);
     private readonly baseDir = path.join(process.cwd(), 'uploads', 'whisper');
     // Simple in-memory session store for assembling chunked transcriptions
-    // sessionId -> { chunks: Map<chunkIndex, text>, finalized?: boolean, lastUpdated: number }
-    private sessions: Map<string, { chunks: Map<number, string>; finalized?: boolean; lastUpdated: number }> = new Map();
+    // sessionId -> { chunks: Map<chunkIndex, { text, startTime?, endTime?, model?, quick? }>, finalized?: boolean, lastUpdated: number }
+    private sessions: Map<
+        string,
+        {
+            chunks: Map<number, { text: string; startTime?: number; endTime?: number; model?: string; quick?: boolean }>;
+            finalized?: boolean;
+            lastUpdated: number;
+        }
+    > = new Map();
 
     constructor() {
         this.ensureBaseDir();
@@ -91,10 +98,10 @@ export class WhisperService {
 
     // No persistent saveChunk: audio is handled in-memory for immediate transcription only
 
-    async transcribeBuffer(buffer: Buffer, mimeType?: string, language?: string): Promise<string> {
+    async transcribeBuffer(buffer: Buffer, mimeType?: string, language?: string, modelOverride?: string): Promise<string> {
         // Always use local transcription (python -m whisper + ffmpeg).
         try {
-            return await this.transcribeBufferLocal(buffer, mimeType, language);
+            return await this.transcribeBufferLocal(buffer, mimeType, language, modelOverride);
         } catch (err) {
             this.logger.error('local transcription failed', err as any);
             return `transcription error (local failed)`;
@@ -102,14 +109,14 @@ export class WhisperService {
     }
 
     // Local transcription helpers: write buffer to temp file and call python -m whisper
-    private async transcribeBufferLocal(buffer: Buffer, mimeType?: string, language?: string): Promise<string> {
+    private async transcribeBufferLocal(buffer: Buffer, mimeType?: string, language?: string, modelOverride?: string): Promise<string> {
         // Create a unique temporary directory in the OS temp folder for this transcription
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'whisper-'));
         const tmpName = `local-${Date.now()}-${Math.round(Math.random() * 1e6)}.webm`;
         const tmpPath = path.join(tmpDir, tmpName);
         fs.writeFileSync(tmpPath, buffer);
         try {
-            const text = await this.transcribeLocalFile(tmpPath, language);
+            const text = await this.transcribeLocalFile(tmpPath, language, modelOverride);
             return text;
         } finally {
             // Ensure we remove the temporary directory and all created files to avoid persisting chunks
@@ -121,9 +128,9 @@ export class WhisperService {
         }
     }
 
-    private async transcribeLocalFile(filePath: string, language?: string): Promise<string> {
+    private async transcribeLocalFile(filePath: string, language?: string, modelOverride?: string): Promise<string> {
         // Use python -m whisper <file> --model <model> --language <lang> --task transcribe --output_dir <dir>
-    const model = process.env.WHISPER_MODEL || 'small';
+    const model = modelOverride || process.env.WHISPER_MODEL || 'small';
     // If language is provided, pass it to whisper; otherwise omit the flag to let whisper auto-detect
     // If language === 'auto', treat as undefined to force Whisper auto-detection
     const lang = language === 'auto' ? undefined : (language || process.env.WHISPER_LANGUAGE);
@@ -305,11 +312,23 @@ export class WhisperService {
     }
     // removed queue/session helper methods to keep service minimal for single-file transcription
     // --- Session helpers for chunked/near-real-time transcription ---
-    addSessionChunk(sessionId: string, chunkIndex: number, text: string) {
+    addSessionChunk(
+        sessionId: string,
+        chunkIndex: number,
+        text: string,
+        meta?: { startTime?: number; endTime?: number; model?: string; quick?: boolean },
+    ) {
         if (!sessionId) return;
         const now = Date.now();
-        const session = this.sessions.get(sessionId) || { chunks: new Map<number, string>(), finalized: false, lastUpdated: now };
-        session.chunks.set(Number(chunkIndex), text ?? '');
+        const session =
+            this.sessions.get(sessionId) || { chunks: new Map<number, { text: string }>(), finalized: false, lastUpdated: now };
+        session.chunks.set(Number(chunkIndex), {
+            text: text ?? '',
+            startTime: meta?.startTime,
+            endTime: meta?.endTime,
+            model: meta?.model,
+            quick: !!meta?.quick,
+        });
         session.lastUpdated = now;
         this.sessions.set(sessionId, session);
         return this.getSessionText(sessionId);
@@ -318,10 +337,68 @@ export class WhisperService {
     getSessionText(sessionId: string): string {
         const session = this.sessions.get(sessionId);
         if (!session) return '';
-        const parts = Array.from(session.chunks.entries())
-            .sort((a, b) => a[0] - b[0])
-            .map(([_, t]) => t || '');
-        return parts.join('\n').trim();
+
+        // Helper: normalize a token for robust comparison
+        const normalize = (tok: string) => {
+            if (!tok) return '';
+            // lowercase
+            let s = tok.toLowerCase();
+            // unicode normalize and strip combining marks (accents)
+            s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            // remove surrounding punctuation
+            s = s.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '');
+            // remove internal apostrophes and fancy quotes
+            s = s.replace(/["'`’]/g, '');
+            // remove trailing hyphen (word césure)
+            s = s.replace(/-$/g, '');
+            return s;
+        };
+
+        const entries = Array.from(session.chunks.entries()).sort((a, b) => a[0] - b[0]);
+        let assembled = '';
+        for (const [_, chunk] of entries) {
+            const curr = (chunk && typeof chunk.text === 'string' ? chunk.text.trim() : '');
+            if (!curr) continue;
+            if (!assembled) {
+                assembled = curr;
+                continue;
+            }
+
+            const prevTokens = assembled.split(/\s+/).filter(Boolean);
+            const currTokens = curr.split(/\s+/).filter(Boolean);
+
+            // If previous chunk ends with a hyphenated token, join directly (word was cut)
+            const lastPrevRaw = prevTokens[prevTokens.length - 1] || '';
+            if (lastPrevRaw.endsWith('-')) {
+                // remove trailing hyphen from assembled and concatenate without extra space
+                assembled = assembled.replace(/-$/g, '') + currTokens.join(' ');
+                continue;
+            }
+
+            const prevNorm = prevTokens.map((t) => normalize(t));
+            const currNorm = currTokens.map((t) => normalize(t));
+
+            const maxCheck = Math.min(20, prevNorm.length, currNorm.length);
+            let dup = 0;
+            for (let k = maxCheck; k >= 1; k--) {
+                const prevSuffix = prevNorm.slice(-k).join(' ');
+                const currPrefix = currNorm.slice(0, k).join(' ');
+                if (prevSuffix && currPrefix && prevSuffix === currPrefix) {
+                    dup = k;
+                    break;
+                }
+            }
+
+            if (dup > 0) {
+                const remaining = currTokens.slice(dup).join(' ');
+                if (remaining) assembled = `${assembled} ${remaining}`;
+                // else entire chunk duplicated
+            } else {
+                assembled = `${assembled}\n${curr}`;
+            }
+        }
+
+        return assembled.trim();
     }
 
     finalizeSession(sessionId: string) {
