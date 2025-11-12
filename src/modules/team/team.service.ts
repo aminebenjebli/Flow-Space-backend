@@ -261,17 +261,7 @@ export class TeamService {
             throw new NotFoundException('Invalid invitation token');
         }
 
-        if (invite.acceptedAt) {
-            throw new BadRequestException(`Invitation has already been accepted on ${invite.acceptedAt.toISOString()}`);
-        }
-
-        const now = new Date();
-        if (invite.expiresAt < now) {
-            const expiredHoursAgo = Math.floor((now.getTime() - invite.expiresAt.getTime()) / (1000 * 60 * 60));
-            throw new BadRequestException(`Invitation expired ${expiredHoursAgo} hours ago (expired: ${invite.expiresAt.toISOString()}, now: ${now.toISOString()})`);
-        }
-
-        // Get user email to verify
+        // Get user email to verify first
         const user = await this.prismaService.user.findUnique({
             where: { id: userId },
             select: { email: true }
@@ -281,7 +271,7 @@ export class TeamService {
             throw new BadRequestException('Invitation is not for this user');
         }
 
-        // Check if user is already a member
+        // Check if user is already a member (PRIORITY CHECK)
         const existingMember = await this.prismaService.teamMember.findUnique({
             where: {
                 teamId_userId: {
@@ -292,7 +282,25 @@ export class TeamService {
         });
 
         if (existingMember) {
+            // User is already a member - check if this invitation was already accepted
+            if (invite.acceptedAt) {
+                throw new ConflictException('Invitation has already been accepted. You are already a member of this team');
+            }
+            // User is a member but this specific invitation wasn't used (maybe they joined via another invite)
             throw new ConflictException('You are already a member of this team');
+        }
+
+        // Now check if THIS specific invitation was already accepted by someone else
+        // (This shouldn't happen in normal flow, but good to check)
+        if (invite.acceptedAt) {
+            throw new ConflictException(`This invitation has already been accepted on ${invite.acceptedAt.toISOString()}`);
+        }
+
+        // Check expiration
+        const now = new Date();
+        if (invite.expiresAt < now) {
+            const expiredHoursAgo = Math.floor((now.getTime() - invite.expiresAt.getTime()) / (1000 * 60 * 60));
+            throw new BadRequestException(`Invitation expired ${expiredHoursAgo} hours ago (expired: ${invite.expiresAt.toISOString()}, now: ${now.toISOString()})`);
         }
 
         // Accept invitation in a transaction

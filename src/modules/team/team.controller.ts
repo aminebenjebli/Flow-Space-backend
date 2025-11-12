@@ -113,16 +113,15 @@ export class TeamController {
             }
         }
     })
-    @ApiResponse({ status: 400, description: 'Invalid or expired token' })
+    @ApiResponse({ status: 400, description: 'Invalid or expired token, or invitation not for this user' })
     @ApiResponse({ status: 404, description: 'Invitation not found' })
-    @ApiResponse({ status: 409, description: 'Already a member' })
+    @ApiResponse({ status: 409, description: 'Already a member or invitation already accepted' })
     async acceptInvite(
         @Request() req: any,
         @Body() acceptInviteDto: AcceptInviteDto
     ) {
         return this.teamService.acceptInvite(req.user.sub, acceptInviteDto);
     }
-
     @Post(':teamId/remove/:userId')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Remove a member from the team' })
