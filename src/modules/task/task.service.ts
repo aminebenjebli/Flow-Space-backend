@@ -30,10 +30,34 @@ export class TaskService {
     ) {}
 
     async create(userId: string, createTaskDto: CreateTaskDto): Promise<Task> {
-        // If projectId is provided, validate user membership in the project's team
+        // If projectId is provided, validate user access to the project
         if (createTaskDto.projectId) {
-            const teamId = await this.teamAccessService.getTeamIdFromProject(createTaskDto.projectId);
-            await this.teamAccessService.assertMember(userId, teamId);
+            const project = await this.prismaService.project.findUnique({
+                where: { id: createTaskDto.projectId },
+                select: { 
+                    teamId: true,
+                    ownerId: true,
+                    visibility: true
+                }
+            });
+
+            if (!project) {
+                throw new NotFoundException('Project not found');
+            }
+
+            // Check access: owner, team member, or public project
+            const isOwner = project.ownerId === userId;
+            const isPublic = project.visibility === 'PUBLIC';
+            
+            if (!isOwner && !isPublic) {
+                // If project has a team, check team membership
+                if (project.teamId) {
+                    await this.teamAccessService.assertMember(userId, project.teamId);
+                } else {
+                    // Personal project that user doesn't own
+                    throw new ForbiddenException('Access denied to this project');
+                }
+            }
         }
 
         const taskData = {
@@ -93,10 +117,34 @@ export class TaskService {
             sortOrder = 'desc'
         } = queryDto;
 
-        // If projectId is provided, validate user membership in the project's team
+        // If projectId is provided, validate user access to the project
         if (projectId) {
-            const teamId = await this.teamAccessService.getTeamIdFromProject(projectId);
-            await this.teamAccessService.assertMember(userId, teamId);
+            const project = await this.prismaService.project.findUnique({
+                where: { id: projectId },
+                select: { 
+                    teamId: true,
+                    ownerId: true,
+                    visibility: true
+                }
+            });
+
+            if (!project) {
+                throw new NotFoundException('Project not found');
+            }
+
+            // Check access: owner, team member, or public project
+            const isOwner = project.ownerId === userId;
+            const isPublic = project.visibility === 'PUBLIC';
+            
+            if (!isOwner && !isPublic) {
+                // If project has a team, check team membership
+                if (project.teamId) {
+                    await this.teamAccessService.assertMember(userId, project.teamId);
+                } else {
+                    // Personal project that user doesn't own
+                    throw new ForbiddenException('Access denied to this project');
+                }
+            }
         }
 
         // Debug logging
@@ -288,11 +336,35 @@ export class TaskService {
         // Check if task exists and belongs to user
         const existingTask = await this.findOne(userId, taskId);
 
-        // If projectId is being updated, validate user membership in the new project's team
+        // If projectId is being updated, validate user access to the new project
         if (updateTaskDto.projectId !== undefined && updateTaskDto.projectId !== existingTask.projectId) {
             if (updateTaskDto.projectId) {
-                const teamId = await this.teamAccessService.getTeamIdFromProject(updateTaskDto.projectId);
-                await this.teamAccessService.assertMember(userId, teamId);
+                const project = await this.prismaService.project.findUnique({
+                    where: { id: updateTaskDto.projectId },
+                    select: { 
+                        teamId: true,
+                        ownerId: true,
+                        visibility: true
+                    }
+                });
+
+                if (!project) {
+                    throw new NotFoundException('Project not found');
+                }
+
+                // Check access: owner, team member, or public project
+                const isOwner = project.ownerId === userId;
+                const isPublic = project.visibility === 'PUBLIC';
+                
+                if (!isOwner && !isPublic) {
+                    // If project has a team, check team membership
+                    if (project.teamId) {
+                        await this.teamAccessService.assertMember(userId, project.teamId);
+                    } else {
+                        // Personal project that user doesn't own
+                        throw new ForbiddenException('Access denied to this project');
+                    }
+                }
             }
         }
 

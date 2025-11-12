@@ -28,10 +28,10 @@ export class TeamAccessService {
     }
 
     /**
-     * Assert that a user has admin privileges (OWNER or ADMIN) in a specific team
+     * Assert that a user has admin privileges (OWNER only) in a specific team
      * @param userId - The user ID to check
      * @param teamId - The team ID to check admin privileges for
-     * @throws ForbiddenException if user is not an admin
+     * @throws ForbiddenException if user is not an owner
      */
     async assertAdmin(userId: string, teamId: string): Promise<void> {
         const membership = await this.prismaService.teamMember.findUnique({
@@ -47,18 +47,19 @@ export class TeamAccessService {
             throw new ForbiddenException('You are not a member of this team');
         }
 
-        if (membership.role !== TeamRole.OWNER && membership.role !== TeamRole.ADMIN) {
-            throw new ForbiddenException('You need admin privileges to perform this action');
+        if (membership.role !== TeamRole.OWNER) {
+            throw new ForbiddenException('Only team owners can perform this action');
         }
     }
 
     /**
      * Get the team ID from a project ID
      * @param projectId - The project ID to get the team for
-     * @returns The team ID
+     * @returns The team ID or null if project has no team
      * @throws NotFoundException if project doesn't exist
+     * @deprecated This method can return null which causes issues. Use direct project queries instead.
      */
-    async getTeamIdFromProject(projectId: string): Promise<string> {
+    async getTeamIdFromProject(projectId: string): Promise<string | null> {
         const project = await this.prismaService.project.findUnique({
             where: { id: projectId },
             select: { teamId: true }
@@ -94,7 +95,7 @@ export class TeamAccessService {
      * Check if user has admin privileges in a team (returns boolean instead of throwing)
      * @param userId - The user ID to check
      * @param teamId - The team ID to check admin privileges for
-     * @returns true if user is admin, false otherwise
+     * @returns true if user is owner, false otherwise
      */
     async isAdmin(userId: string, teamId: string): Promise<boolean> {
         const membership = await this.prismaService.teamMember.findUnique({
@@ -106,7 +107,7 @@ export class TeamAccessService {
             }
         });
 
-        return membership && (membership.role === TeamRole.OWNER || membership.role === TeamRole.ADMIN);
+        return membership && membership.role === TeamRole.OWNER;
     }
 
     /**

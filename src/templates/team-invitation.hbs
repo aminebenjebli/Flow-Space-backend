@@ -113,23 +113,6 @@
             </p>
         </div>
 
-        <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
-
-        <h4>Alternative Methods:</h4>
-
-        <p><strong>Option 1:</strong> Use the API directly</p>
-        <div class="token-info">
-            <strong>Endpoint:</strong> POST {{baseUrl}}/api/v1/teams/accept-invite<br>
-            <strong>Headers:</strong> Authorization: Bearer YOUR_JWT_TOKEN<br>
-            <strong>Body:</strong> {"token": "{{token}}"}
-        </div>
-
-        <p><strong>Option 2:</strong> Manual token entry in the application</p>
-        <div class="token-info">
-            <strong>Invitation Token:</strong><br>
-            {{token}}
-        </div>
-
         <p><strong>Important:</strong> This invitation will expire on {{expirationDate}}.</p>
 
         <div class="footer">
