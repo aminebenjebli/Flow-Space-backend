@@ -16,17 +16,15 @@ import { WhisperModule } from './modules/whisper/whisper.module';
 import { TaskAiModule } from './modules/task-ai/task-ai.module';
 import { TeamModule } from './modules/team/team.module';
 import { ProjectModule } from './modules/project/project.module';
+import { GamificationModule } from './modules/gamification/gamification.module';
 
 
 @Module({
     imports: [
-        // Environment Configuration
         ConfigModule.forRoot({
             isGlobal: true,
             cache: true
         }),
-
-        // Rate Limiting
         ThrottlerModule.forRootAsync({
             imports: [ConfigModule],
             inject: [ConfigService],
@@ -37,8 +35,6 @@ import { ProjectModule } from './modules/project/project.module';
                 }
             ]
         }),
-
-        // Email Configuration
         MailerModule.forRootAsync({
             imports: [ConfigModule],
             inject: [ConfigService],
@@ -46,7 +42,7 @@ import { ProjectModule } from './modules/project/project.module';
                 transport: {
                     host: config.get<string>('EMAIL_HOST'),
                     port: config.get<number>('EMAIL_PORT'),
-                    secure: true, // Set to true if using SSL (port 465)
+                    secure: true,
                     auth: {
                         user: config.get<string>('EMAIL_USER'),
                         pass: config.get<string>('EMAIL_PASSWORD')
@@ -61,7 +57,6 @@ import { ProjectModule } from './modules/project/project.module';
                 }
             })
         }),
-
         FileUploadModule,
         AuthModule,
         UserModule,
@@ -69,7 +64,9 @@ import { ProjectModule } from './modules/project/project.module';
         TaskAiModule,
         WhisperModule,
         TeamModule,
-        ProjectModule
+        ProjectModule,
+      
+        GamificationModule
     ],
     controllers: [],
     providers: [PrismaService, TokenBlacklistService]

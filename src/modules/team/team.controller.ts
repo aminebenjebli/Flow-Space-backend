@@ -204,6 +204,40 @@ export class TeamController {
         return this.teamService.updateTeamSettings(req.user.sub, teamId, updateData);
     }
 
+@Post(':teamId/join')
+@HttpCode(HttpStatus.OK)
+@ApiOperation({ summary: 'Join an existing team directly (no invite required)' })
+@ApiParam({ name: 'teamId', description: 'Team ID', example: '507f1f77bcf86cd799439011' })
+@ApiResponse({
+  status: 200,
+  description: 'Successfully joined the team',
+  schema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string', example: 'Successfully joined the team' },
+      team: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', example: '507f1f77bcf86cd799439011' },
+          name: { type: 'string', example: 'Development Team' },
+          description: { type: 'string', example: 'Main development team' },
+          createdAt: { type: 'string', format: 'date-time' }
+        }
+      }
+    }
+  }
+})
+@ApiResponse({ status: 404, description: 'Team not found' })
+@ApiResponse({ status: 409, description: 'Already a member' })
+async joinTeamDirectly(
+  @Request() req: any,
+  @Param('teamId') teamId: string
+) {
+  return this.teamService.joinTeamDirectly(req.user.sub, teamId);
+}
+
+
+
     @Get(':teamId/activity')
     @ApiOperation({ summary: 'Get team activity dashboard data' })
     @ApiParam({ name: 'teamId', description: 'Team ID', example: '507f1f77bcf86cd799439011' })

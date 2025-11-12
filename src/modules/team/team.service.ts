@@ -10,6 +10,7 @@ import { EmailTemplate, EmailSubject } from '../../core/constants/email.constant
 
 @Injectable()
 export class TeamService {
+    prisma: any;
     constructor(
         private readonly prismaService: PrismaService,
         private readonly teamAccessService: TeamAccessService,
@@ -20,6 +21,51 @@ export class TeamService {
     /**
      * Create a new team with the requesting user as OWNER
      */
+
+async joinTeamDirectly(userId: string, teamId: string) {
+  // Check if the team exists
+  const team = await this.prisma.team.findUnique({
+    where: { id: teamId },
+  });
+  if (!team) {
+    throw new NotFoundException('Team not found');
+  }
+
+  // Check if the user is already a member
+  const existingMember = await this.prisma.teamMember.findUnique({
+    where: {
+      userId_teamId: {
+        userId,
+        teamId,
+      },
+    },
+  });
+  if (existingMember) {
+    throw new ConflictException('Already a member of this team');
+  }
+
+  // Add the user as a MEMBER
+  await this.prisma.teamMember.create({
+    data: {
+      userId,
+      teamId,
+      role: 'MEMBER',
+    },
+  });
+
+  return {
+    message: 'Successfully joined the team',
+    team: {
+      id: team.id,
+      name: team.name,
+      description: team.description,
+      createdAt: team.createdAt,
+    },
+  };
+}
+
+
+
     async createTeam(userId: string, createTeamDto: CreateTeamDto): Promise<Team> {
         // Check if team name already exists for this user (optional business rule)
         const existingTeam = await this.prismaService.team.findFirst({

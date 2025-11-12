@@ -18,28 +18,126 @@ model User {
   otpCodeExpiresAt DateTime?
   isEmailVerified  Boolean   @default(false)
 
-  // Relations
-  tasks             Task[]
+  // Existing Relations
+  tasks             Task[]  
   blacklistedTokens BlacklistedToken[]
   teamMembers       TeamMember[]
   ownedProjects     Project[] @relation("ProjectOwner")
+  
+  // Gamification Relations (UPDATED)
+  userAchievements  UserAchievement[]
+  points            Points[]
+  userStats         UserStats?
+  challenges        UserChallenge[]
 }
 
+// ========== GAMIFICATION MODELS ==========
 
-model BlacklistedToken {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  token     String
-  userId    String   @db.ObjectId
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+// AC-9: Level progression & AC-4: Personal points displayed
+model UserStats {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique @db.ObjectId
+  totalPoints     Int      @default(0)
+  level           Int      @default(1)
+  currentStreak   Int      @default(0)    // AC-3: 7-day streak tracking
+  longestStreak   Int      @default(0)
+  tasksCompleted  Int      @default(0)    // AC-3: 50 tasks milestone
+  lastActiveDate  DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([totalPoints])  // AC-5: Fast leaderboard queries
+  @@index([level])
+}
 
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+// AC-1: Points for tasks, AC-2: Bonus points, AC-8: Points history
+model Points {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  taskId      String?  @db.ObjectId  // Optional for non-task points
+  points      Int
+  reason      String   // "TASK_COMPLETION", "EARLY_BONUS", "CHALLENGE_REWARD"
+  createdAt   DateTime @default(now())
 
-  @@index([token])
-  @@index([expiresAt])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  
   @@index([userId])
+  @@index([createdAt])
 }
+
+// AC-3: Achievement definitions (global, not per-user)
+model AchievementDefinition {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String   @unique
+  description     String
+  icon            String?
+  pointsAwarded   Int
+  criteria        String   // "COMPLETE_50_TASKS", "7_DAY_STREAK", etc.
+  targetValue     Int      // 50, 7, etc.
+  createdAt       DateTime @default(now())
+  
+  unlockedBy      UserAchievement[]
+  
+  @@index([criteria])
+}
+
+// AC-3 & AC-7: Track which users unlocked which achievements
+model UserAchievement {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @db.ObjectId
+  achievementId   String   @db.ObjectId
+  unlockedAt      DateTime @default(now())
+  progress        Int      @default(0)  // Current progress toward achievement
+  notified        Boolean  @default(false)  // AC-7: Achievement notifications
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement     AchievementDefinition @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+}
+
+// AC-6: Weekly challenges with special rewards
+model Challenge {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String
+  pointsRewarded  Int
+  startDate       DateTime
+  endDate         DateTime
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  teamId          String   @db.ObjectId
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  participants    UserChallenge[]
+
+  @@index([isActive])
+  @@index([endDate])
+}
+
+
+// AC-18: Users participate in challenges
+model UserChallenge {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String   @db.ObjectId
+  challengeId   String   @db.ObjectId
+  joinedAt      DateTime @default(now())
+  completed     Boolean  @default(false)
+  completedAt   DateTime?
+  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge     Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, challengeId])
+  @@index([userId])
+  @@index([challengeId])
+}
+
+// ========== EXISTING MODELS (UNCHANGED) ==========
 
 model Task {
   id          String       @id @default(auto()) @map("_id") @db.ObjectId
@@ -51,11 +149,12 @@ model Task {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  // Relations
   userId    String   @db.ObjectId
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   projectId String?  @db.ObjectId
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  points    Points[]
 
   @@index([userId])
   @@index([status])
@@ -87,20 +186,21 @@ enum ProjectVisibility {
   PUBLIC
   PRIVATE
 }
-
 model Team {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   name        String
   description String?
   createdAt   DateTime @default(now())
 
-  // Relations
-  members  TeamMember[]
-  projects Project[]
-  invites  TeamInvite[] // <-- back-relation ajouté
+  members  TeamMember[]  // existing field
+  projects Project[]     // existing field
+  invites  TeamInvite[]  // existing field
+
+  challenges Challenge[] // Add this field to create the reverse relationship with the Challenge model
 
   @@index([name])
 }
+
 
 model TeamMember {
   id       String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -109,13 +209,26 @@ model TeamMember {
   role     TeamRole @default(MEMBER)
   joinedAt DateTime @default(now())
 
-  // Rels
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([teamId, userId]) // un seul enregistrement par user dans un team
+  @@unique([teamId, userId]) 
   @@index([userId])
   @@index([teamId])
+}
+
+model BlacklistedToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  token     String
+  userId    String   @db.ObjectId
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([expiresAt])
+  @@index([userId])
 }
 
 model TeamInvite {
@@ -142,7 +255,6 @@ model Project {
   visibility  ProjectVisibility @default(PRIVATE)
   createdAt   DateTime          @default(now())
 
-  // Relations
   ownerId String @db.ObjectId
   owner   User   @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
@@ -151,9 +263,8 @@ model Project {
 
   tasks Task[]
 
-  @@unique([ownerId, name]) // nom unique par propriétaire pour projets persos
+  @@unique([ownerId, name])
   @@index([teamId])
   @@index([ownerId])
   @@index([visibility])
-
 }
