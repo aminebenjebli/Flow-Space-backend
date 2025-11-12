@@ -80,7 +80,6 @@ enum TaskPriority {
 
 enum TeamRole {
   OWNER
-  ADMIN
   MEMBER
 }
 
