@@ -27,34 +27,51 @@ export class WhisperController {
     async transcribe(@UploadedFile() file: Express.Multer.File, @Body() body: any) {
         if (!file) throw new BadRequestException('audio file required');
 
-        // sessionId and chunkIndex optional
+        // Accept optional session fields and timestamps from client
         const sessionId = body?.sessionId || `s-${Date.now()}`;
-        const chunkIndex = body?.chunkIndex ? Number(body.chunkIndex) : 0;
+        const chunkIndex = typeof body?.chunkIndex !== 'undefined' ? Number(body.chunkIndex) : 0;
+        const language = body?.language;
+        const startTime = typeof body?.startTime !== 'undefined' ? Number(body.startTime) : undefined;
+        const endTime = typeof body?.endTime !== 'undefined' ? Number(body.endTime) : undefined;
 
-    // No persistent save of audio chunks (we only use in-memory buffer)
-
-        // Try immediate transcription of this chunk
+        // Quick hypothesis: use very small model for speed (tiny) - fast but lower quality
         try {
-            const text = await this.whisperService.transcribeBuffer(file.buffer, file.mimetype, body?.language);
-            // If a sessionId was provided, append this chunk's text into the session store
-            if (sessionId) {
-                try {
-                    const sessionText = this.whisperService.addSessionChunk(sessionId, chunkIndex, text);
-                    return { sessionId, chunkIndex, text, sessionText, queued: false };
-                } catch (e) {
-                    // still return chunk-level text if session append failed
-                    return { sessionId, chunkIndex, text, queued: false };
-                }
+            // Use a slightly larger default quick model for better accuracy (can be overridden with WHISPER_QUICK_MODEL)
+            const quickModel = process.env.WHISPER_QUICK_MODEL || 'tiny';
+            const quickText = await this.whisperService.transcribeBuffer(file.buffer, file.mimetype, language, quickModel);
+
+            // Store quick result in session with optional timestamps
+            try {
+                this.whisperService.addSessionChunk(sessionId, chunkIndex, quickText, { startTime, endTime, model: quickModel, quick: true });
+            } catch (e) {
+                // don't crash if session append fails
+                console.warn('Failed to add quick session chunk:', (e as any)?.message ?? e);
             }
-            return { sessionId, chunkIndex, text, queued: false };
+
+            // Respond quickly with the quick hypothesis and assembled session text
+            const sessionText = this.whisperService.getSessionText(sessionId);
+
+            // Fire-and-forget: schedule heavier re-processing for higher-quality transcript
+            const heavyModel = process.env.WHISPER_MODEL || 'large';
+            // Launch background task but do not await
+            (async () => {
+                try {
+                    const refined = await this.whisperService.transcribeBuffer(file.buffer, file.mimetype, language, heavyModel);
+                    this.whisperService.addSessionChunk(sessionId, chunkIndex, refined, { startTime, endTime, model: heavyModel, quick: false });
+                    // Log when refined chunk is saved to help debugging and client sync
+                    console.log(`Refined chunk saved for session ${sessionId} chunk ${chunkIndex} model ${heavyModel}`);
+                } catch (bgErr) {
+                    console.warn('Background reprocess failed:', (bgErr as any)?.message ?? bgErr);
+                }
+            })();
+
+            // Return quick hypothesis and mark it as provisional so the client can show a badge
+            return { sessionId, chunkIndex, text: quickText, sessionText, queuedBackground: true, provisional: true, quickModel };
         } catch (err: any) {
-            // If it's a quota error, enqueue chunk for later processing
-            // If quota or unreadable, return queued=true so client can re-upload later
-            if (err && (err.name === 'QuotaExceeded' || err.name === 'UnreadableChunk')) {
+            // If ffmpeg/unreadable or similar recoverable error, return queued true
+            if (err && (err.name === 'UnreadableChunk')) {
                 return { sessionId, chunkIndex, text: null, queued: true, reason: err.name };
             }
-
-            // other errors: return error message
             return { sessionId, chunkIndex, text: null, queued: false, error: err?.message || 'transcription error' };
         }
     }

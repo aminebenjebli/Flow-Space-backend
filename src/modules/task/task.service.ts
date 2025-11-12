@@ -519,9 +519,8 @@ export class TaskService {
         });
 
         if (tasks.length !== taskIds.length) {
-            throw new ForbiddenException(
-                'Some tasks do not belong to you or do not exist'
-            );
+            // One or more task IDs do not belong to the user
+            throw new ForbiddenException('One or more tasks do not belong to the user');
         }
 
         const updateData = {
@@ -604,6 +603,129 @@ export class TaskService {
                     // ignore and try next parser
                     continue;
                 }
+            }
+
+            // Fallback: try to parse explicit ISO or common numeric dates if chrono failed
+            if (!dueDate) {
+                try {
+                    const iso = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+                    if (iso) {
+                        dueDate = new Date(iso[1] + 'T00:00:00');
+                        matchedText = iso[1];
+                    } else {
+                        // DD/MM/YYYY or DD.MM.YYYY or DD-MM-YYYY
+                        const alt = text.match(/\b(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})\b/);
+                        if (alt) {
+                            // Normalize to YYYY-MM-DD where possible (assume DD/MM/YYYY)
+                            const parts = alt[1].split(/[\/\.\-]/);
+                            if (parts.length === 3) {
+                                let day = parts[0].padStart(2, '0');
+                                let month = parts[1].padStart(2, '0');
+                                let year = parts[2];
+                                if (year.length === 2) year = '20' + year;
+                                const isoStr = `${year}-${month}-${day}`;
+                                const d = new Date(isoStr + 'T00:00:00');
+                                if (!isNaN(d.getTime())) {
+                                    dueDate = d;
+                                    matchedText = alt[1];
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }
+
+            // Post-process heuristics: timezone/time-of-day and future adjustments
+            try {
+                const now = new Date();
+
+                // helper to add days
+                const addDays = (d: Date, days: number) => {
+                    const r = new Date(d);
+                    r.setDate(r.getDate() + days);
+                    return r;
+                };
+
+                // If chrono found a date, refine it using keywords (morning/afternoon/evening)
+                if (dueDate) {
+                    const lower = text.toLowerCase();
+                    // time of day heuristics (multilingual)
+                    if (/\b(morning|matin|mañana|manhã|morgens)\b/i.test(lower)) {
+                        dueDate.setHours(9, 0, 0, 0);
+                    } else if (/\b(afternoon|après-?midi|tarde|tarde|nachmittags)\b/i.test(lower)) {
+                        dueDate.setHours(15, 0, 0, 0);
+                    } else if (/\b(evening|soir|noche|noite|abends)\b/i.test(lower)) {
+                        dueDate.setHours(18, 0, 0, 0);
+                    } else if (/\b(noon|midi|mediodía|meio-dia)\b/i.test(lower)) {
+                        dueDate.setHours(12, 0, 0, 0);
+                    } else {
+                        // default to start of day for date-only expressions
+                        dueDate.setHours(9, 0, 0, 0);
+                    }
+
+                    // If parsed date ends up in the past but the text clearly indicates future (tomorrow/next), shift forward
+                    const futureIndicators = {
+                        tomorrow: ['tomorrow', 'demain', 'mañana', 'amanhã', 'morgen'],
+                        next: ['next', 'prochain', 'próximo', 'próxima', 'próxima', 'nächste']
+                    };
+
+                    if (dueDate.getTime() < now.getTime()) {
+                        // if 'tomorrow' present
+                        for (const word of futureIndicators.tomorrow) {
+                            if (lower.includes(word)) {
+                                dueDate = addDays(dueDate, 1);
+                                break;
+                            }
+                        }
+
+                        // if 'next' present (next week/month), add 7 days as a heuristic
+                        if (dueDate.getTime() < now.getTime()) {
+                            for (const word of futureIndicators.next) {
+                                if (lower.includes(word)) {
+                                    dueDate = addDays(dueDate, 7);
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Weekday name handling: if user wrote a weekday, move to next occurrence
+                        const weekdays: { [k: string]: number } = {
+                            sunday: 0, lundi: 1, martes: 2, mercredi: 3, jueves: 4, vendredi: 5, samedi: 6,
+                            sunday_en: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+                            domingo: 0, lunes: 1, martes_es: 2, miercoles: 3, jueves_es: 4, viernes: 5, sabado: 6,
+                            domingo_pt: 0, segunda: 1, terca: 2, terca_pt: 2, quarta: 3, quinta: 4, sexta: 5, sabado_pt: 6,
+                            sonntag: 0, montag: 1, dienstag: 2, mittwoch: 3, donnerstag: 4, freitag: 5, samstag: 6
+                        };
+
+                        // basic check for common weekday names in multiple languages
+                        const weekdayMap: { [k: string]: number } = {
+                            sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+                            dimanche: 0, lundi: 1, mardi: 2, mercredi: 3, jeudi: 4, vendredi: 5, samedi: 6,
+                            domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6,
+                            domingo_pt: 0, segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado_pt: 6,
+                            sonntag: 0, montag: 1, dienstag: 2, mittwoch: 3, donnerstag: 4, freitag: 5, samstag: 6
+                        };
+
+                        // try to find any weekday name in the text
+                        const weekdayNames = Object.keys(weekdayMap);
+                        for (const name of weekdayNames) {
+                            if (lower.includes(name)) {
+                                const target = weekdayMap[name];
+                                // find next date with that weekday
+                                const currentWeekday = now.getDay();
+                                let delta = (target - currentWeekday + 7) % 7;
+                                if (delta === 0) delta = 7; // next occurrence
+                                dueDate = addDays(new Date(now.getFullYear(), now.getMonth(), now.getDate(), dueDate.getHours(), dueDate.getMinutes(), 0, 0), delta);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                // ignore post-processing errors
+                console.warn('Date post-processing failed', e?.message || e);
             }
 
             return {
