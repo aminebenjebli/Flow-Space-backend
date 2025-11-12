@@ -4,10 +4,11 @@ import {
     SubscribeMessage,
     MessageBody
 } from '@nestjs/websockets';
+import { Task, TaskStatus } from '@prisma/client';
 
 import { Server, Socket } from 'socket.io';
 
-@WebSocketGateway(3000, {
+@WebSocketGateway({
     transports: ['websocket'],
     cors: { origin: '*' },
     namespace: '/tasks'
@@ -42,13 +43,34 @@ export class TasksGateway {
             );
         }
     }
-
+   @SubscribeMessage('taskAdded')
+    handleTaskAdd(@MessageBody() task: any) {
+        console.log('Task added:', task); // Log for verification
+        this.server.emit('taskAdded', task); // Broadcast task update to all connected clients
+    }
+   @SubscribeMessage('taskDeleted')
+  handleTaskDeleted(@MessageBody() taskId: string) {
+    console.log('Received task deletion request for taskId:', taskId);
+    this.server.emit('taskDeleted', taskId); // You can also send the full task data if needed
+  }
     // Événement pour la mise à jour de la tâche (à un utilisateur spécifique)
     @SubscribeMessage('taskUpdated')
     handleTaskUpdate(@MessageBody() taskData: any) {
         console.log('Task updated:', taskData); // Log for verification
         this.server.emit('taskUpdated', taskData); // Broadcast task update to all connected clients
     }
+     @SubscribeMessage('bulkUpdateStatus')
+handleBulkUpdateStatus(@MessageBody() payload: { count: number, taskIds: string[], status: TaskStatus }) {
+  console.log('Received bulk update status:', payload);
+
+  // Now we emit this to all connected clients so that they can reflect the updated tasks
+  this.server.emit('bulkUpdateStatus', {
+    count: payload.count,
+    taskIds: payload.taskIds,  // Emit the taskIds
+    status: payload.status,    // Emit the updated status
+  });
+}
+
 
     // Événement de test pour émettre un message personnalisé
     @SubscribeMessage('sendMessage')

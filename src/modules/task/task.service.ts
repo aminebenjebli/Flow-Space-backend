@@ -13,7 +13,7 @@ import {
     QueryTaskDto,
     TaskStatus
 } from './dto/task.dto';
-import { TasksGateway } from 'src/websocket/tasks.gateway';
+import { TasksGateway } from './tasks.gateway';
 
 export interface PaginatedTasks {
     tasks: Task[];
@@ -34,7 +34,9 @@ export class TaskService {
     async create(userId: string, createTaskDto: CreateTaskDto): Promise<Task> {
         // If projectId is provided, validate user membership in the project's team
         if (createTaskDto.projectId) {
-            const teamId = await this.teamAccessService.getTeamIdFromProject(createTaskDto.projectId);
+            const teamId = await this.teamAccessService.getTeamIdFromProject(
+                createTaskDto.projectId
+            );
             await this.teamAccessService.assertMember(userId, teamId);
         }
 
@@ -75,6 +77,7 @@ export class TaskService {
                 }
             }
         });
+        this.tasksGateway.server.emit('taskAdded', task);
         return task;
     }
 
@@ -97,25 +100,26 @@ export class TaskService {
 
         // If projectId is provided, validate user membership in the project's team
         if (projectId) {
-            const teamId = await this.teamAccessService.getTeamIdFromProject(projectId);
+            const teamId =
+                await this.teamAccessService.getTeamIdFromProject(projectId);
             await this.teamAccessService.assertMember(userId, teamId);
         }
 
         // Debug logging
-        console.log('=== TASK SEARCH DEBUG ===');
-        console.log('User ID:', userId);
-        console.log('Query params:', queryDto);
-        console.log('Extracted params:', {
-            status,
-            priority,
-            search,
-            dueFrom,
-            dueUntil,
-            page,
-            limit,
-            sortBy,
-            sortOrder
-        });
+        // console.log('=== TASK SEARCH DEBUG ===');
+        // console.log('User ID:', userId);
+        // console.log('Query params:', queryDto);
+        // console.log('Extracted params:', {
+        //     status,
+        //     priority,
+        //     search,
+        //     dueFrom,
+        //     dueUntil,
+        //     page,
+        //     limit,
+        //     sortBy,
+        //     sortOrder
+        // });
 
         // Ensure limit doesn't exceed maximum
         const actualLimit = Math.min(limit, 100);
@@ -233,8 +237,8 @@ export class TaskService {
             this.prismaService.task.count({ where })
         ]);
 
-        console.log('Query results:', { tasksFound: tasks.length, total });
-        console.log('=== END DEBUG ===');
+        // console.log('Query results:', { tasksFound: tasks.length, total });
+        // console.log('=== END DEBUG ===');
 
         return {
             tasks,
@@ -291,9 +295,15 @@ export class TaskService {
         const existingTask = await this.findOne(userId, taskId);
 
         // If projectId is being updated, validate user membership in the new project's team
-        if (updateTaskDto.projectId !== undefined && updateTaskDto.projectId !== existingTask.projectId) {
+        if (
+            updateTaskDto.projectId !== undefined &&
+            updateTaskDto.projectId !== existingTask.projectId
+        ) {
             if (updateTaskDto.projectId) {
-                const teamId = await this.teamAccessService.getTeamIdFromProject(updateTaskDto.projectId);
+                const teamId =
+                    await this.teamAccessService.getTeamIdFromProject(
+                        updateTaskDto.projectId
+                    );
                 await this.teamAccessService.assertMember(userId, teamId);
             }
         }
@@ -345,39 +355,24 @@ export class TaskService {
                 }
             }
         });
-          this.tasksGateway.handleTaskUpdate(updated);
-           return updated;
+        this.tasksGateway.server.emit('taskUpdated', updated);
+        return updated;
     }
 
     async remove(userId: string, taskId: string): Promise<Task> {
-        // Check if task exists and belongs to user
         await this.findOne(userId, taskId);
 
-        return this.prismaService.task.delete({
+        const deletedTask = await this.prismaService.task.delete({
             where: { id: taskId },
             include: {
-                user: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true
-                    }
-                },
-                project: {
-                    select: {
-                        id: true,
-                        name: true,
-                        description: true,
-                        team: {
-                            select: {
-                                id: true,
-                                name: true
-                            }
-                        }
-                    }
-                }
+                user: { select: { id: true, name: true, email: true } },
+                project: { select: { id: true, name: true, description: true } }
             }
         });
+
+        // Emit the taskDeleted event to notify connected clients
+        this.tasksGateway.server.emit('taskDeleted', deletedTask);
+        return deletedTask;
     }
 
     async getTaskStats(userId: string): Promise<{
@@ -387,7 +382,7 @@ export class TaskService {
         done: number;
         cancelled: number;
         overdue: number;
-     }> {
+    }> {
         const now = new Date();
 
         const [total, todo, inProgress, done, cancelled, overdue] =
@@ -466,96 +461,156 @@ export class TaskService {
             },
             data: updateData
         });
+         this.tasksGateway.server.emit('bulkUpdateStatus', {
+        count: result.count, 
+        taskIds: taskIds,
+        status: status
+     });
+
         return { count: result.count };
     }
+
     parseUserText(input: string) {
-            // Multilingue : on essaie plusieurs parseurs locaux de chrono-node
-            // chrono-node fournit des parseurs par langue : chrono.fr, chrono.es, chrono.pt, chrono.de, etc.
-            // Stratégie : heuristique rapide pour détecter la langue, sinon tenter FR/ES/PT/DE/EN dans cet ordre.
-            const text = (input || '').trim();
-            if (!text) return { dueDate: null, parsedText: null };
+        // Multilingue : on essaie plusieurs parseurs locaux de chrono-node
+        // chrono-node fournit des parseurs par langue : chrono.fr, chrono.es, chrono.pt, chrono.de, etc.
+        // Stratégie : heuristique rapide pour détecter la langue, sinon tenter FR/ES/PT/DE/EN dans cet ordre.
+        const text = (input || '').trim();
+        if (!text) return { dueDate: null, parsedText: null };
 
-            // Heuristique simple basé sur mots-clés pour favoriser certains parseurs
-            const lower = text.toLowerCase();
-            const langHints: { [k: string]: string[] } = {
-                fr: ['aujourd', 'demain', 'prochain', 'prochaine', 'janvier', 'févr', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'sept', 'oct', 'nov', 'déc'],
-                es: ['mañana', 'próxima', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'],
-                pt: ['amanhã', 'próxima', 'próximo', 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'],
-                de: ['morgen', 'nächste', 'januar', 'februar', 'märz', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'dezember']
-            };
+        // Heuristique simple basé sur mots-clés pour favoriser certains parseurs
+        const lower = text.toLowerCase();
+        const langHints: { [k: string]: string[] } = {
+            fr: [
+                'aujourd',
+                'demain',
+                'prochain',
+                'prochaine',
+                'janvier',
+                'févr',
+                'mars',
+                'avril',
+                'mai',
+                'juin',
+                'juillet',
+                'août',
+                'sept',
+                'oct',
+                'nov',
+                'déc'
+            ],
+            es: [
+                'mañana',
+                'próxima',
+                'enero',
+                'febrero',
+                'marzo',
+                'abril',
+                'mayo',
+                'junio',
+                'julio',
+                'agosto',
+                'septiembre',
+                'octubre',
+                'noviembre',
+                'diciembre'
+            ],
+            pt: [
+                'amanhã',
+                'próxima',
+                'próximo',
+                'janeiro',
+                'fevereiro',
+                'março',
+                'abril',
+                'maio',
+                'junho',
+                'julho',
+                'agosto',
+                'setembro',
+                'outubro',
+                'novembro',
+                'dezembro'
+            ],
+            de: [
+                'morgen',
+                'nächste',
+                'januar',
+                'februar',
+                'märz',
+                'april',
+                'mai',
+                'juni',
+                'juli',
+                'august',
+                'september',
+                'oktober',
+                'november',
+                'dezember'
+            ]
+        };
 
-            let preferredOrder: Array<any> = [];
-            try {
-                // Build parser order based on hints
-                const foundLangs: string[] = [];
-                for (const [lang, hints] of Object.entries(langHints)) {
-                    for (const h of hints) {
-                        if (lower.includes(h)) {
-                            foundLangs.push(lang);
-                            break;
-                        }
-                    }
-                }
-
-                const parsers: { [k: string]: any } = {
-                    fr: (chrono as any).fr,
-                    es: (chrono as any).es,
-                    pt: (chrono as any).pt,
-                    de: (chrono as any).de,
-                    en: chrono
-                };
-
-                // If we detected hints, try those first (unique)
-                for (const lang of Array.from(new Set(foundLangs))) {
-                    if (parsers[lang]) preferredOrder.push(parsers[lang]);
-                }
-
-                // Then the default full order
-                for (const lang of ['fr', 'es', 'pt', 'de', 'en']) {
-                    const p = parsers[lang];
-                    if (!preferredOrder.includes(p)) preferredOrder.push(p);
-                }
-            } catch (e) {
-                // Fallback order in case of any issue
-                preferredOrder = [(chrono as any).fr, (chrono as any).es, (chrono as any).pt, (chrono as any).de, chrono];
-            }
-
-            let dueDate: Date | null = null;
-            let matchedText: string | null = null;
-            for (const parser of preferredOrder) {
-                try {
-                    if (!parser || typeof parser.parse !== 'function') continue;
-                    const results = parser.parse(text);
-                    if (results && results.length > 0 && results[0].start) {
-                        dueDate = results[0].start.date();
-                        matchedText = results[0].text;
+        let preferredOrder: Array<any> = [];
+        try {
+            // Build parser order based on hints
+            const foundLangs: string[] = [];
+            for (const [lang, hints] of Object.entries(langHints)) {
+                for (const h of hints) {
+                    if (lower.includes(h)) {
+                        foundLangs.push(lang);
                         break;
                     }
-                } catch (err) {
-                    // ignore and try next parser
-                    continue;
                 }
             }
 
-            return {
-                dueDate,
-                parsedText: matchedText
+            const parsers: { [k: string]: any } = {
+                fr: (chrono as any).fr,
+                es: (chrono as any).es,
+                pt: (chrono as any).pt,
+                de: (chrono as any).de,
+                en: chrono
             };
-  }
 
-   async updateTask(taskData: any) {
-    // Utiliser la fonction de mise à jour de la tâche
-    const updatedTask = await this.update(taskData.userId, taskData.taskId, taskData.updateTaskDto);
+            // If we detected hints, try those first (unique)
+            for (const lang of Array.from(new Set(foundLangs))) {
+                if (parsers[lang]) preferredOrder.push(parsers[lang]);
+            }
 
-    // Une fois la tâche mise à jour, émettre l'événement WebSocket
-    try {
-        this.tasksGateway.handleTaskUpdate(updatedTask);
-    } catch (err) {
-        // Non-fatal: log and continue
-        console.warn('[Warn] Failed to emit websocket event for updated task:', err && err.message ? err.message : err);
+            // Then the default full order
+            for (const lang of ['fr', 'es', 'pt', 'de', 'en']) {
+                const p = parsers[lang];
+                if (!preferredOrder.includes(p)) preferredOrder.push(p);
+            }
+        } catch (e) {
+            // Fallback order in case of any issue
+            preferredOrder = [
+                (chrono as any).fr,
+                (chrono as any).es,
+                (chrono as any).pt,
+                (chrono as any).de,
+                chrono
+            ];
+        }
+
+        let dueDate: Date | null = null;
+        let matchedText: string | null = null;
+        for (const parser of preferredOrder) {
+            try {
+                if (!parser || typeof parser.parse !== 'function') continue;
+                const results = parser.parse(text);
+                if (results && results.length > 0 && results[0].start) {
+                    dueDate = results[0].start.date();
+                    matchedText = results[0].text;
+                    break;
+                }
+            } catch (err) {
+                // ignore and try next parser
+                continue;
+            }
+        }
+
+        return {
+            dueDate,
+            parsedText: matchedText
+        };
     }
-   
-    return updatedTask;
-}
-
 }
