@@ -275,6 +275,27 @@ export class WhisperService {
                     this.logger.debug(`whisper process closed code=${code} stdout=${stdout ? '[stdout present]' : 'empty'} stderr=${stderr ? '[stderr present]' : 'empty'}`);
                     if (code !== 0) {
                         this.logger.error(`whisper process exited ${code} stderr=${stderr}`);
+                        
+                        // Détecter les erreurs spécifiques pour fournir des messages plus utiles
+                        const stderrLower = (stderr || '').toLowerCase();
+                        
+                        // Problème de checksum du modèle
+                        if (stderrLower.includes('sha256 checksum does not match')) {
+                            this.logger.error('Whisper model file is corrupted. Please delete the cached model file and retry.');
+                            const modelMatch = stderr.match(/([^\s]+\.pt)/);
+                            if (modelMatch) {
+                                this.logger.error(`Corrupted model file: ${modelMatch[1]}`);
+                                this.logger.error(`Run: rm -f ${modelMatch[1]}`);
+                            }
+                            return reject(new Error('Whisper model file is corrupted. Please clear the cache and retry.'));
+                        }
+                        
+                        // Problème de connexion réseau
+                        if (stderrLower.includes('connectionreseterror') || stderrLower.includes('connection reset by peer')) {
+                            this.logger.error('Network connection failed while downloading Whisper model. Please check your internet connection and retry.');
+                            return reject(new Error('Network error: Failed to download Whisper model. Please check your connection and retry.'));
+                        }
+                        
                         return reject(new Error(`whisper process failed: ${code}`));
                     }
 
