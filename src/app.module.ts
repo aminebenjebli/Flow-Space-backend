@@ -16,6 +16,8 @@ import { WhisperModule } from './modules/whisper/whisper.module';
 import { TaskAiModule } from './modules/task-ai/task-ai.module';
 import { TeamModule } from './modules/team/team.module';
 import { ProjectModule } from './modules/project/project.module';
+import { TasksGateway } from './modules/task/tasks.gateway';
+// import { WebsocketModule } from './websocket/websocket.module';
 
 
 @Module({
@@ -69,7 +71,8 @@ import { ProjectModule } from './modules/project/project.module';
         TaskAiModule,
         WhisperModule,
         TeamModule,
-        ProjectModule
+        ProjectModule,
+       
     ],
     controllers: [],
     providers: [PrismaService, TokenBlacklistService]
