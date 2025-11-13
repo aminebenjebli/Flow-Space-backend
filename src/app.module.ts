@@ -17,6 +17,7 @@ import { TaskAiModule } from './modules/task-ai/task-ai.module';
 import { TeamModule } from './modules/team/team.module';
 import { ProjectModule } from './modules/project/project.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
+import { HealthModule } from './health/health.module';
 
 
 @Module({
@@ -65,8 +66,8 @@ import { GamificationModule } from './modules/gamification/gamification.module';
         WhisperModule,
         TeamModule,
         ProjectModule,
-      
-        GamificationModule
+        GamificationModule,
+        HealthModule
     ],
     controllers: [],
     providers: [PrismaService, TokenBlacklistService]
