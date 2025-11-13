@@ -18,6 +18,7 @@ import { TeamModule } from './modules/team/team.module';
 import { ProjectModule } from './modules/project/project.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
 import { HealthModule } from './health/health.module';
+import { AppController } from './app.controller';
 
 @Module({
     imports: [
@@ -68,7 +69,7 @@ import { HealthModule } from './health/health.module';
         GamificationModule,
         HealthModule
     ],
-    controllers: [],
+    controllers: [AppController],
     providers: [PrismaService, TokenBlacklistService]
 })
 export class AppModule implements NestModule {
