@@ -19,7 +19,6 @@ import { ProjectModule } from './modules/project/project.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
 import { HealthModule } from './health/health.module';
 
-
 @Module({
     imports: [
         ConfigModule.forRoot({
